@@ -1,0 +1,21 @@
+# PDFs (user-provided, not version-controlled)
+documents/**/*.pdf
+documents/*.pdf
+
+# Generated outputs
+summaries/
+synthesis/synthesis.md
+synthesis/synthesis-memory.md
+synthesis/synthesis.html
+references.bib
+
+# Keep directory stubs
+!documents/README.md
+!summaries/README.md
+!synthesis/README.md
+
+# Python / environment
+.venv/
+__pycache__/
+*.pyc
+.env
