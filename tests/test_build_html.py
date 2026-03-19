@@ -124,8 +124,9 @@ def test_render_citation_placeholder():
     )
     assert 'data-key="Smith2023Finding"' in html
     assert 'data-key="Lee2024Review"' in html
-    # Raw bracket form must be replaced
-    assert "[Smith2023Finding]" not in html.replace('data-key="Smith2023Finding"', "")
+    # Bracket text must be preserved as visible content inside <cite>
+    assert '<cite data-key="Smith2023Finding">[Smith2023Finding]</cite>' in html
+    assert '<cite data-key="Lee2024Review">[Lee2024Review]</cite>' in html
 
 
 def test_render_html_escaping():

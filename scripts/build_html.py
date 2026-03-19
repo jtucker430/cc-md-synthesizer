@@ -66,7 +66,7 @@ def _apply_inline(text: str) -> str:
     # [BibKey] -> bare <cite> placeholder (metadata filled in by enrich_citations)
     text = re.sub(
         r"\[([A-Za-z][A-Za-z0-9]+)\]",
-        lambda m: f'<cite data-key="{m.group(1)}"></cite>',
+        lambda m: f'<cite data-key="{m.group(1)}">[{m.group(1)}]</cite>',
         text,
     )
     text = re.sub(r"\*\*(.+?)\*\*", r"<strong>\1</strong>", text)
