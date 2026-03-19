@@ -141,7 +141,7 @@ Reused verbatim from `cc-research-project-template`. Provides targeted `pdftotex
    - Writes summary to `summaries/{subdir}/{BibKey}.md` using type-appropriate template. If the PDF is in `documents/` directly (no subdirectory), the summary is written to `summaries/{BibKey}.md` (no subdirectory prefix).
 4. Skips documents with existing summaries (idempotent)
 5. Compacts context after every 5 documents to manage token budget
-6. After writing each summary, appends an entry to `summaries/manifest.json` mapping BibTeX key → absolute PDF path and absolute summary path. This manifest is consumed by `build-html` to populate `data-pdf` and `data-summary` attributes. Entry format:
+6. After writing each summary, upserts an entry in `summaries/manifest.json` (creates the file if absent; adds or overwrites the entry for that BibTeX key if the file exists). This allows re-runs and crash recovery to always produce a consistent manifest. The manifest is consumed by `build-html` to populate `data-pdf` and `data-summary` attributes. Entry format:
    ```json
    {
      "Smith2023Finding": {
@@ -184,8 +184,9 @@ All types share a consistent Metadata block (title, authors/org, year, publicati
 1. Checks `summaries/` for existing summaries
 2. If none found but PDFs exist in `documents/`:
    - Uses `AskUserQuestion`: *"No summaries found. I can run the full pipeline (cleanup → summarize → synthesize). Should I proceed? Any context to pass to the summarize step?"*
-   - If confirmed: invokes `cleanup-pdf-names` then `summarize-documents` via Skill tool (passing only the summarize-step context from the user's response), then continues to synthesis using the argument originally passed to `create-synthesis`
+   - If confirmed: invokes `cleanup-pdf-names documents/` then `summarize-documents documents/ [summarize-step-context]` via Skill tool (the path is always `documents/`; the summarize-step context comes from the user's `AskUserQuestion` response), then continues to synthesis using the argument originally passed to `create-synthesis`
    - The summarize-step context and the synthesis-step context are kept separate: the former orients document extraction and summary framing; the latter orients the cross-cutting synthesis structure
+   - If `summarize-documents` fails or completes with zero summaries written: halt with an error message. If it completes with partial summaries (some PDFs failed): use `AskUserQuestion` to ask whether to proceed with the partial set or abort.
 3. If no PDFs found either: informs user and stops
 
 **Synthesis output (`synthesis/synthesis.md`) structure:**
@@ -221,7 +222,7 @@ The user maintains this file across sessions. It is included verbatim in every c
 **Argument:** `["optional page title or audience note"]`
 
 **Behavior:**
-1. Reads `synthesis/synthesis.md`, `references.bib`, and `summaries/manifest.json`
+1. Reads `synthesis/synthesis.md`, `references.bib`, `summaries/manifest.json`, and `synthesis/synthesis-memory.md` (if present; used verbatim in every clipboard prompt)
 2. Prerequisite checks:
    - If `synthesis.md` is missing: halt with error
    - If `references.bib` is missing: halt with error
@@ -283,7 +284,7 @@ For flat placement (PDF directly in `documents/`, no subdirectory), paths omit t
 
 Appears on hover, contains:
 - Title, authors, year, venue
-- "Open source" link → DOI URL if available, else `file://` path to local PDF
+- "Open source" link → if `data-doi` is present, construct `https://doi.org/{data-doi}` (the field stores the bare DOI string without the URL prefix); else use `data-pdf` as a `file://` link to the local PDF
 - "View summary" link → `file://` path to local `.md` summary
 
 ### Text Highlight → Ask Claude
@@ -343,8 +344,8 @@ The clipboard behavior is isolated in a single clearly-commented JS block:
      }>,
      synthesisTopic: string,         // document.title (set by build-html to the H1 of synthesis.md)
      memoryDoc:      string | null,  // full text of synthesis-memory.md, or null if absent
-     pdfPaths:       string[],       // data-pdf values from citations (absolute file:// paths)
-     summaryPaths:   string[]        // data-summary values from citations (absolute file:// paths)
+     pdfPaths:       string[],       // convenience alias: data-pdf values from citations (always derived from citations array, never independent)
+     summaryPaths:   string[]        // convenience alias: data-summary values from citations (always derived from citations array, never independent)
    }
    ========================================================= */
 function handleAskClaude(payload) {
