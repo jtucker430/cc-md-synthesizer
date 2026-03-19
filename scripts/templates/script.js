@@ -2,20 +2,24 @@
 const tooltip = document.getElementById('tooltip');
 let hideTimer = null;
 
+function escapeHtml(s) {
+  return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
 function showTooltip(cite) {
   const d = cite.dataset;
-  const sourceHref = d.doi  ? 'https://doi.org/' + d.doi
+  const sourceHref = d.doi  ? 'https://doi.org/' + encodeURIComponent(d.doi)
                     : d.pdf ? d.pdf
                     : null;
   const summaryHref = d.summary || null;
 
   tooltip.innerHTML = `
-    <strong>${d.title || d.key}</strong>
-    <p>${d.authors || ''} ${d.year ? '(' + d.year + ')' : ''}</p>
-    ${d.venue ? '<p>' + d.venue + '</p>' : ''}
+    <strong>${escapeHtml(d.title || d.key)}</strong>
+    <p>${escapeHtml(d.authors || '')} ${d.year ? '(' + escapeHtml(d.year) + ')' : ''}</p>
+    ${d.venue ? '<p>' + escapeHtml(d.venue) + '</p>' : ''}
     <div class="tooltip-links">
-      ${sourceHref  ? '<a href="' + sourceHref  + '" target="_blank">Open source</a>'  : ''}
-      ${summaryHref ? '<a href="' + summaryHref + '" target="_blank">View summary</a>' : ''}
+      ${sourceHref  ? '<a href="' + escapeHtml(sourceHref)  + '" target="_blank">Open source</a>'  : ''}
+      ${summaryHref ? '<a href="' + escapeHtml(summaryHref) + '" target="_blank">View summary</a>' : ''}
     </div>`;
 
   const vw = window.innerWidth;

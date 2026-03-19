@@ -17,6 +17,7 @@ import json
 import re
 import sys
 from pathlib import Path
+from typing import Optional
 
 # Use html.escape() for safe HTML escaping
 escape = html.escape
@@ -202,10 +203,10 @@ def render_markdown(text: str) -> tuple:
 def build_html_page(
     title: str,
     body_html: str,
-    h2_headings: list,
-    memory_doc,
+    h2_headings: list[tuple[str, str]],
+    memory_doc: Optional[str],
     generated_date: str,
-    missing_keys: list,
+    missing_keys: list[str],
 ) -> str:
     """Generate the synthesis HTML page.
 
