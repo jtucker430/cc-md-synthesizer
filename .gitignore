@@ -12,7 +12,7 @@ references.bib
 # Keep directory stubs
 !documents/README.md
 !summaries/README.md
-!synthesis/README.md
+# (synthesis/ is not ignored globally, so no negation needed for synthesis/README.md)
 
 # Python / environment
 .venv/
