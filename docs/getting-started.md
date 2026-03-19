@@ -62,18 +62,18 @@ Most skills accept optional context to orient their output:
 
 ### Using synthesis-guidance.md
 
-For detailed framing, create or edit `synthesis-guidance.md` at the repo root. `/create-synthesis` reads it automatically. See the template already in this repo for structure.
+For detailed framing, edit `synthesis-guidance.md` at the repo root. `/create-synthesis` reads it automatically. See the template already in this repo for structure.
 
 ## Using the HTML page
 
 Open `synthesis/synthesis.html` in any browser (no server required):
 
 - **Hover a citation** → see title, authors, year, and links to the source PDF and summary
-- **Select text → "Ask Claude"** → a context-rich prompt is copied to clipboard. Paste it into a Claude Code session to ask questions about the passage.
+- **Select text → "Ask Claude"** → a context-rich prompt is copied to clipboard. Paste it into a new Claude Code chat (open a terminal and run `claude`) to ask questions about the passage with full context pre-loaded.
 
 ## Persistent context across sessions
 
-Edit `synthesis/synthesis-memory.md` to record conclusions you've reached and framing notes. This file is automatically included in every "Ask Claude" clipboard prompt, so Claude has running context without re-explanation.
+`/create-synthesis` automatically creates `synthesis/synthesis-memory.md` as a stub. Edit it to record conclusions you've reached and framing notes. This file is automatically included in every "Ask Claude" clipboard prompt, so Claude has running context without re-explanation.
 
 ## Updating the synthesis
 

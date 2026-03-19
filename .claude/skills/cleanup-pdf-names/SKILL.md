@@ -17,7 +17,7 @@ $ARGUMENTS
 
 ### Step 1: Determine Target Path
 
-**If $ARGUMENTS empty:** Ask user for path (e.g., `lit_review/papers/` or `lit_review/papers/00-background/`).
+**If $ARGUMENTS empty:** Ask user for path (e.g., `documents/` or `documents/00-background/`).
 
 **If $ARGUMENTS provided:** Use path; resolve relative paths from project root.
 
