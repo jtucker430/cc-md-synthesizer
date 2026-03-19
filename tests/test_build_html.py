@@ -213,3 +213,68 @@ def test_enrich_citations_already_file_url():
     result, _ = mod.enrich_citations(html, bib, manifest)
     assert 'data-pdf="file:///already/prefixed.pdf"' in result
     assert "file://file://" not in result
+
+
+# ── build_html_page tests ────────────────────────────────────────────────────
+def test_build_html_page_structure():
+    mod = _load_script()
+    page = mod.build_html_page(
+        title="Test Synthesis",
+        body_html='<h2 id="s1">Section One</h2><p>Body text.</p>',
+        h2_headings=[("Section One", "s1")],
+        memory_doc=None,
+        generated_date="2026-03-19",
+        missing_keys=[],
+    )
+    assert "<!DOCTYPE html>" in page
+    assert "<title>Test Synthesis</title>" in page
+    assert 'href="#s1"' in page  # sidebar link
+    assert "Section One" in page
+    assert "style.css" in page  # CSS linked
+    assert "script.js" in page  # JS linked
+    assert "Ask Claude" in page  # button div present
+    assert "SYNTHESIS_MEMORY = null" in page  # inline const
+    assert "SYNTHESIS_TOPIC" in page  # inline const
+    assert "cdn." not in page
+    assert "fonts.googleapis" not in page
+
+
+def test_build_html_page_missing_keys_warning():
+    mod = _load_script()
+    page = mod.build_html_page(
+        title="T",
+        body_html="",
+        h2_headings=[],
+        memory_doc=None,
+        generated_date="2026-03-19",
+        missing_keys=["Ghost2020X", "Missing2021Y"],
+    )
+    assert "WARNING" in page
+    assert "Ghost2020X" in page
+    assert "Missing2021Y" in page
+
+
+def test_build_html_page_memory_doc_embedded():
+    mod = _load_script()
+    page = mod.build_html_page(
+        title="T",
+        body_html="",
+        h2_headings=[],
+        memory_doc="## Topic\nAI risk research\n",
+        generated_date="2026-03-19",
+        missing_keys=[],
+    )
+    assert "AI risk research" in page
+
+
+def test_build_html_page_memory_null_when_absent():
+    mod = _load_script()
+    page = mod.build_html_page(
+        title="T",
+        body_html="",
+        h2_headings=[],
+        memory_doc=None,
+        generated_date="2026-03-19",
+        missing_keys=[],
+    )
+    assert "SYNTHESIS_MEMORY = null" in page

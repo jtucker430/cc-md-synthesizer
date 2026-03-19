@@ -13,6 +13,7 @@ Phase 2 note:
 
 import argparse
 import html
+import json
 import re
 import sys
 from pathlib import Path
@@ -196,6 +197,72 @@ def render_markdown(text: str) -> tuple:
             html_parts.append(f"<p>{_apply_inline(escape(para_text))}</p>")
 
     return "\n".join(html_parts), title, h2_headings
+
+
+def build_html_page(
+    title: str,
+    body_html: str,
+    h2_headings: list,
+    memory_doc,
+    generated_date: str,
+    missing_keys: list,
+) -> str:
+    """Generate the synthesis HTML page.
+
+    Links to scripts/templates/style.css and scripts/templates/script.js
+    via relative paths from synthesis/synthesis.html.
+    Injects SYNTHESIS_MEMORY and SYNTHESIS_TOPIC as an inline script block.
+    """
+    sidebar_links = "\n".join(
+        f'      <li><a href="#{slug}">{escape(text)}</a></li>'
+        for text, slug in h2_headings
+    )
+
+    memory_js = json.dumps(memory_doc)  # "null" if None, else a JSON string
+
+    warning_comment = ""
+    if missing_keys:
+        keys_str = ", ".join(f"[{k}]" for k in missing_keys)
+        warning_comment = (
+            f"\n<!-- WARNING: The following citation keys were not found in references.bib:\n"
+            f"     {keys_str}\n"
+            f"     These <cite> elements have no metadata. "
+            f"Re-run /summarize-documents if needed. -->"
+        )
+
+    return f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{escape(title)}</title>
+  <link rel="stylesheet" href="../scripts/templates/style.css">
+</head>
+<body>
+  <header>
+    <h1>{escape(title)}</h1>
+    <p class="meta">Generated {generated_date}</p>
+  </header>
+  <div class="layout">
+    <nav class="sidebar">
+      <ul>
+{sidebar_links}
+      </ul>
+    </nav>
+    <main class="content">
+{body_html}
+    </main>
+  </div>
+  <div id="tooltip" class="tooltip hidden"></div>
+  <div id="ask-claude-btn" class="ask-btn hidden">Ask Claude</div>
+  <div id="toast" class="toast hidden"></div>
+  <script>
+    const SYNTHESIS_MEMORY = {memory_js};
+    const SYNTHESIS_TOPIC  = {json.dumps(title)};
+  </script>
+  <script src="../scripts/templates/script.js"></script>
+</body>
+</html>{warning_comment}"""
 
 
 def main():
