@@ -149,3 +149,67 @@ def test_render_slug_collision():
     assert headings[1][1] == "intro-2"
     assert 'id="intro"' in html
     assert 'id="intro-2"' in html
+
+
+# ── Citation enrichment tests ────────────────────────────────────────────────────
+def test_enrich_citations_full():
+    mod = _load_script()
+    html = '<p>See <cite data-key="Smith2023Finding">[Smith2023Finding]</cite>.</p>'
+    bib = {
+        "Smith2023Finding": {
+            "title": "A Study of X",
+            "authors": "Smith, J.",
+            "year": "2023",
+            "venue": "J. Example",
+            "doi": "10.1234/x",
+        }
+    }
+    manifest = {
+        "Smith2023Finding": {
+            "pdf": "/abs/path/doc.pdf",
+            "summary": "/abs/path/summary.md",
+        }
+    }
+    result, missing = mod.enrich_citations(html, bib, manifest)
+    assert missing == []
+    assert 'data-title="A Study of X"' in result
+    assert 'data-year="2023"' in result
+    assert 'data-doi="10.1234/x"' in result
+    assert 'data-pdf="file:///abs/path/doc.pdf"' in result
+    assert 'data-summary="file:///abs/path/summary.md"' in result
+
+
+def test_enrich_citations_missing_from_bib():
+    mod = _load_script()
+    html = '<cite data-key="Ghost2000X">[Ghost2000X]</cite>'
+    result, missing = mod.enrich_citations(html, {}, {})
+    assert "Ghost2000X" in missing
+    assert 'data-key="Ghost2000X"' in result
+
+
+def test_enrich_citations_in_bib_not_in_manifest():
+    mod = _load_script()
+    html = '<cite data-key="Known2021Y">[Known2021Y]</cite>'
+    bib = {
+        "Known2021Y": {
+            "title": "T",
+            "authors": "A",
+            "year": "2021",
+            "venue": "V",
+            "doi": "",
+        }
+    }
+    result, missing = mod.enrich_citations(html, bib, {})
+    assert missing == []
+    assert 'data-pdf=""' in result
+    assert 'data-summary=""' in result
+
+
+def test_enrich_citations_already_file_url():
+    mod = _load_script()
+    html = '<cite data-key="K">[K]</cite>'
+    bib = {"K": {"title": "T", "authors": "A", "year": "2020", "venue": "V", "doi": ""}}
+    manifest = {"K": {"pdf": "file:///already/prefixed.pdf", "summary": ""}}
+    result, _ = mod.enrich_citations(html, bib, manifest)
+    assert 'data-pdf="file:///already/prefixed.pdf"' in result
+    assert "file://file://" not in result

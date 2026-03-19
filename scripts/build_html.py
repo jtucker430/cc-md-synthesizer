@@ -75,6 +75,57 @@ def _apply_inline(text: str) -> str:
     return text
 
 
+def _file_url(path: str) -> str:
+    """Ensure path has a file:// prefix. Returns empty string if path is empty."""
+    if not path:
+        return ""
+    if path.startswith("file://"):
+        return path
+    return "file://" + path
+
+
+def enrich_citations(html: str, bib: dict, manifest: dict) -> tuple:
+    """Replace <cite data-key="K">[K]</cite> placeholders with full data-* attribute sets.
+
+    Args:
+        html:     HTML body from render_markdown (contains bare cite placeholders)
+        bib:      {key: {title, authors, year, venue, doi}} from parse_bib
+        manifest: {key: {pdf, summary}} from manifest.json
+
+    Returns:
+        (enriched_html, missing_keys)
+        - enriched_html: HTML with fully-attributed <cite> elements
+        - missing_keys:  list of keys found in html but absent from bib
+    """
+    missing: list = []
+
+    def replace_cite(m: re.Match) -> str:
+        key = m.group(1)
+        if key not in bib:
+            if key not in missing:
+                missing.append(key)
+            return m.group(0)  # leave as-is
+        meta = bib[key]
+        paths = manifest.get(key, {})
+        attrs = " ".join(
+            [
+                f'data-key="{escape(key)}"',
+                f'data-title="{escape(meta["title"])}"',
+                f'data-authors="{escape(meta["authors"])}"',
+                f'data-year="{escape(meta["year"])}"',
+                f'data-venue="{escape(meta["venue"])}"',
+                f'data-doi="{escape(meta["doi"])}"',
+                f'data-pdf="{escape(_file_url(paths.get("pdf", "")))}"',
+                f'data-summary="{escape(_file_url(paths.get("summary", "")))}"',
+            ]
+        )
+        return f"<cite {attrs}>[{escape(key)}]</cite>"
+
+    pattern = r'<cite data-key="([^"]+)">\[[^\]]+\]</cite>'
+    enriched = re.sub(pattern, replace_cite, html)
+    return enriched, missing
+
+
 def render_markdown(text: str) -> tuple:
     """Convert synthesis.md markdown subset to HTML.
 
