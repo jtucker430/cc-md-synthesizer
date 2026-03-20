@@ -81,13 +81,17 @@ Shown on `mouseenter` on any `<cite>` element. Structure:
 </div>
 ```
 
-Tooltip must close on `mouseleave` and be positioned near the citation element.
+Tooltip behavior:
+- Show on `mouseenter` on a `<cite>` element; hide ~200ms after `mouseleave`
+- The tooltip itself must also respond to `mouseenter`/`mouseleave` with the same cancel/restart timer logic, so the user can move the mouse into the tooltip and click links without it disappearing
+- Do NOT set `pointer-events: none` on `.tooltip` — the links inside must be clickable
+- Position near the citation element (fixed coords, flip if near viewport edge)
 
 ## Text Highlight → Ask Claude Button
 
 1. Listen for `selectionchange` or `mouseup` events
 2. When text is selected (non-empty `window.getSelection()`):
-   - Show the `#ask-claude-btn` button positioned near the selection
+   - Show the `#ask-claude-btn` button positioned near the selection using `getBoundingClientRect()` coords directly (no `window.scrollX/scrollY` offset — button is `position: fixed`)
 3. When button is clicked:
    - Collect citations: any `<cite>` element whose text range overlaps the selection range, PLUS any `<cite>` elements that are siblings within the same block-level parent (paragraph or list item) as the selection
    - Call `handleAskClaude(payload)` with the assembled payload
