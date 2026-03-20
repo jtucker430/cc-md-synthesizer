@@ -6,12 +6,18 @@ A Claude Code skill pipeline for ingesting PDF documents and generating an inter
 
 1. Drop PDFs into `documents/` (subdirectories allowed)
 2. Run `/create-synthesis` — this runs the full pipeline and creates `synthesis/synthesis.md`
-3. Run `python scripts/build_html.py` — generates `synthesis/synthesis.html`
+3. Run `uv run python scripts/build_html.py` — generates `synthesis/synthesis.html`
 4. Open `synthesis/synthesis.html` in a browser
 
-Or run individual steps: `/cleanup-pdf-names`, `/summarize-documents`, `/create-synthesis`, then `python scripts/build_html.py`
+Or run individual steps: `/cleanup-pdf-names`, `/summarize-documents`, `/create-synthesis`, then `uv run python scripts/build_html.py`
 
 See `docs/getting-started.md` for full instructions.
+
+## Python
+
+Always use `uv run` when executing Python scripts or tools. Examples:
+- `uv run python scripts/build_html.py`
+- `uv run pytest`
 
 ## Notes
 
