@@ -102,13 +102,13 @@ After `/launch-synthesis` opens the page:
 - **Hover a citation** → tooltip with title, authors, year, venue, and links to open the source PDF and view the summary
 - **Select any text → "Ask Claude"** → a side panel slides in with a streaming Claude response, pre-loaded with the selected passage, the relevant citations, and your synthesis memory context
 
-The local server runs at `http://localhost:8000` in the background. `/launch-synthesis` reports its PID so you can stop it when done:
+The local server must be running for the "Ask Claude" side panel to work. `/launch-synthesis` opens the HTML page and then prompts you to start the server yourself in a **new terminal window**:
 
 ```bash
-kill <PID>
-# or
-pkill -f "uvicorn server.main:app"
+uv run uvicorn server.main:app --reload
 ```
+
+Closing that terminal window automatically stops the server — no cleanup needed.
 
 ---
 
