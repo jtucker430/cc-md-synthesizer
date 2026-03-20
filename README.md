@@ -18,7 +18,7 @@ Works with academic papers, industry reports, white papers, technical docs — a
 
 ```bash
 # 1. Clone the repo
-git clone https://github.com/your-username/cc-synthesizer
+git clone https://github.com/mr-devs/cc-synthesizer
 cd cc-synthesizer
 ```
 
