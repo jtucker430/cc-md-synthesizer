@@ -5,11 +5,10 @@ A Claude Code skill pipeline for ingesting PDF documents and generating an inter
 ## How to use
 
 1. Drop PDFs into `documents/` (subdirectories allowed)
-2. Run `/create-synthesis` — this runs the full pipeline and creates `synthesis/synthesis.md`
-3. Run `uv run python scripts/build_html.py` — generates `synthesis/synthesis.html`
-4. Open `synthesis/synthesis.html` in a browser
+2. Run `/create-synthesis` — runs the full pipeline and creates `synthesis/synthesis.md`
+3. Run `/launch-synthesis` — builds the HTML, starts the local server, and opens the page in the browser
 
-Or run individual steps: `/cleanup-pdf-names`, `/summarize-documents`, `/create-synthesis`, then `uv run python scripts/build_html.py`
+Or run individual steps: `/cleanup-pdf-names`, `/summarize-documents`, `/create-synthesis`, `/launch-synthesis`
 
 See `docs/getting-started.md` for full instructions.
 
@@ -23,4 +22,4 @@ Always use `uv run` when executing Python scripts or tools. Examples:
 
 - PDFs in `documents/` are not version-controlled (see `.gitignore`)
 - `references.bib`, `summaries/`, and `synthesis/` outputs are also gitignored by default
-- `synthesis-guidance.md` at the repo root is an optional framing document read by `/create-synthesis`
+- `synthesis/synthesis-guidance.md` is an optional framing document read by `/create-synthesis`

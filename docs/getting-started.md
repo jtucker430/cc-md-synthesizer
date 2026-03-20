@@ -22,7 +22,10 @@ Verify your setup:
 ```bash
 pdftotext -v
 fbib --help
+claude auth status   # must show logged in
 ```
+
+No API key needed — the "Ask Claude" feature uses your Claude Code subscription.
 
 ## Workflow
 
@@ -37,15 +40,10 @@ Drop PDFs into `documents/`, then in Claude Code:
 Claude will confirm, then run cleanup → summarize → synthesize automatically. Afterwards:
 
 ```
-python scripts/build_html.py
+/launch-synthesis
 ```
 
-Open `synthesis/synthesis.html` in your browser.
-
-Optional: override the page title:
-```
-python scripts/build_html.py --title "My Custom Title"
-```
+This builds the HTML, starts the local server, and opens the page in your browser with "Ask Claude" ready to use.
 
 ### Option B: Step by step
 
@@ -53,7 +51,7 @@ python scripts/build_html.py --title "My Custom Title"
 /cleanup-pdf-names documents/
 /summarize-documents documents/
 /create-synthesis
-python scripts/build_html.py
+/launch-synthesis
 ```
 
 ### Providing context
@@ -67,24 +65,41 @@ Most skills accept optional context to orient their output:
 
 ### Using synthesis-guidance.md
 
-For detailed framing, edit `synthesis-guidance.md` at the repo root. `/create-synthesis` reads it automatically. See the template already in this repo for structure.
+For detailed framing, edit `synthesis/synthesis-guidance.md`. `/create-synthesis` reads it automatically. See the template already in this repo for structure.
 
 ## Using the HTML page
 
-Open `synthesis/synthesis.html` in any browser (no server required):
+After `/launch-synthesis` opens the page:
 
 - **Hover a citation** → see title, authors, year, and links to the source PDF and summary
-- **Select text → "Ask Claude"** → a context-rich prompt is copied to clipboard. Paste it into a new Claude Code chat (open a terminal and run `claude`) to ask questions about the passage with full context pre-loaded.
+- **Select text → "Ask Claude"** → a side panel slides in with a live Claude response streamed from your local server
+
+The local server runs in the background. `/launch-synthesis` reports its PID so you can stop it when done:
+
+```bash
+kill <PID>
+# or
+pkill -f "uvicorn server.main:app"
+```
+
+### Troubleshooting
+
+| Symptom | Cause | Fix |
+|---|---|---|
+| "Could not reach the local server" | Server not running | Run `/launch-synthesis` or `uv run uvicorn server.main:app --reload` |
+| "claude CLI not found" | CC not installed or not on PATH | Install Claude Code; verify `claude auth status` shows logged in |
+| Port 8000 already in use | Another process using the port | Run `uv run uvicorn server.main:app --reload --port 8001` and update the fetch URL in `scripts/templates/script.js` |
 
 ## Persistent context across sessions
 
-`/create-synthesis` automatically creates `synthesis/synthesis-memory.md` as a stub. Edit it to record conclusions you've reached and framing notes. This file is automatically included in every "Ask Claude" clipboard prompt, so Claude has running context without re-explanation.
+`/create-synthesis` automatically creates `synthesis/synthesis-memory.md` as a stub. Edit it to record conclusions you've reached and framing notes. This file is automatically included in every "Ask Claude" request, so Claude has running context without re-explanation.
 
 ## Updating the synthesis
 
 After adding new PDFs or editing summaries, re-run:
+
 ```
 /summarize-documents documents/    # only processes new PDFs
 /create-synthesis                  # regenerates synthesis.md
-python scripts/build_html.py       # regenerates synthesis.html
+/launch-synthesis                  # rebuilds HTML and reopens the page
 ```

@@ -54,6 +54,9 @@ tooltip.addEventListener('mouseleave', scheduleHide);
 /* ── Text selection → Ask Claude ──────────────────────────────────────────── */
 const askBtn = document.getElementById('ask-claude-btn');
 
+// Leaf/paragraph-level block elements — walk stops here, not at structural containers
+const BLOCK_STOP_ELEMENTS = new Set(['P','LI','BLOCKQUOTE','TD','TH','H1','H2','H3','H4','H5','H6']);
+
 function getCitationsNearSelection(selection) {
   const range = selection.getRangeAt(0);
   const seen  = new Set();
@@ -74,15 +77,14 @@ function getCitationsNearSelection(selection) {
   document.querySelectorAll('cite').forEach(cite => {
     const cr = document.createRange();
     cr.selectNodeContents(cite);
-    if (range.compareBoundaryPoints(Range.END_TO_START, cr) < 0 &&
-        range.compareBoundaryPoints(Range.START_TO_END, cr) > 0) {
+    if (range.compareBoundaryPoints(Range.END_TO_START, cr) > 0 &&
+        range.compareBoundaryPoints(Range.START_TO_END, cr) < 0) {
       addCite(cite);
     }
   });
 
   let node = range.commonAncestorContainer;
-  while (node && !['P','LI','BLOCKQUOTE','DIV','SECTION','ARTICLE','MAIN']
-                    .includes(node.nodeName)) {
+  while (node && !BLOCK_STOP_ELEMENTS.has(node.nodeName)) {
     node = node.parentNode;
   }
   if (node) {
@@ -118,48 +120,10 @@ askBtn.addEventListener('mousedown', e => {
 
   const selectedText = selection.toString().trim();
   const citations    = getCitationsNearSelection(selection);
-  const pdfPaths     = citations.map(c => c.pdf).filter(Boolean);
-  const summaryPaths = citations.map(c => c.summary).filter(Boolean);
 
-  handleAskClaude({
-    selectedText,
-    citations,
-    synthesisTopic: SYNTHESIS_TOPIC,
-    memoryDoc: SYNTHESIS_MEMORY,
-    pdfPaths,
-    summaryPaths,
-  });
+  handleAskClaude({ selectedText, citations });
   askBtn.classList.add('hidden');
 });
-
-/* ── Prompt builder ───────────────────────────────────────────────────────── */
-function buildPrompt(payload) {
-  const citLines = payload.citations.map(c => [
-    `- BibKey: ${c.key}`,
-    `  Title: ${c.title || ''}`,
-    `  Authors: ${c.authors || ''}`,
-    `  Summary: ${c.summary || ''}`,
-    `  PDF: ${c.pdf || ''}`,
-  ].join('\n')).join('\n');
-
-  const memSection = payload.memoryDoc
-    ? `\n## Synthesis memory\n${payload.memoryDoc}\n`
-    : '';
-
-  return [
-    `## Context`,
-    `You are helping me understand a synthesis about ${payload.synthesisTopic}.`,
-    ``,
-    `## Selected text`,
-    `"${payload.selectedText}"`,
-    ``,
-    `## Relevant citations in this passage`,
-    citLines || '(none)',
-    memSection,
-    `## My question`,
-    `[Fill in your question here]`,
-  ].join('\n');
-}
 
 /* ── Toast ────────────────────────────────────────────────────────────────── */
 const toastEl = document.getElementById('toast');
@@ -175,24 +139,203 @@ function showToast(message) {
   }, 2500);
 }
 
-/* =========================================================
-   PHASE2_SERVER_HOOK
-   Phase 1: copies assembled prompt to clipboard.
-   Phase 2: replace this function to POST to localhost:8000
-   and render streaming response in the side panel.
+/* ── Chat panel ───────────────────────────────────────────────────────────── */
+const chatPanel     = document.getElementById('response-panel');
+const chatThread    = document.getElementById('chat-thread');
+const chatInput     = document.getElementById('chat-input');
+const chatSendBtn   = document.getElementById('chat-send-btn');
+const chatCloseBtn  = document.getElementById('response-panel-close');
 
-   Payload contract:
-   {
-     selectedText:   string,
-     citations:      Array<{ key, title, authors, year, venue, doi, pdf, summary }>,
-     synthesisTopic: string,
-     memoryDoc:      string | null,
-     pdfPaths:       string[],
-     summaryPaths:   string[]
-   }
-   ========================================================= */
-function handleAskClaude(payload) {
-  const prompt = buildPrompt(payload);
-  navigator.clipboard.writeText(prompt);
-  showToast('Prompt copied — paste into Claude Code.');
+// In-memory conversation state
+let messages = [];
+// Only tracks the dynamic selection data; static globals added at request time
+let currentContext = {
+  selectedText: '',
+  citations: [],
+};
+
+chatCloseBtn.addEventListener('click', () => chatPanel.classList.remove('open'));
+
+// Open panel and pre-populate input with context block from selected text
+function handleAskClaude(selectionCtx) {
+  messages = [];
+  chatThread.innerHTML = '';
+
+  currentContext = {
+    selectedText:  selectionCtx.selectedText  || '',
+    citations:     selectionCtx.citations     || [],
+  };
+
+  // Pre-populate input with a context block; user fills in their question
+  chatInput.value = buildContextBlock(selectionCtx);
+
+  chatPanel.classList.add('open');
+  chatInput.focus();
+  // Place cursor at end
+  chatInput.setSelectionRange(chatInput.value.length, chatInput.value.length);
+}
+
+function buildContextBlock(ctx) {
+  const citLine = (ctx.citations || [])
+    .map(c => `[${c.key}] ${c.title || '(no title)'}`)
+    .join('; ');
+  let block = `<context>\nSelected: "${ctx.selectedText}"`;
+  if (citLine) block += `\nCitations: ${citLine}`;
+  block += `\n</context>\n\nMy question: `;
+  return block;
+}
+
+/* ── Message rendering ────────────────────────────────────────────────────── */
+function _appendBubble(type) {
+  const div = document.createElement('div');
+  div.className = `chat-message chat-message-${type}`;
+  chatThread.appendChild(div);
+  chatThread.scrollTop = chatThread.scrollHeight;
+  return div;
+}
+
+function appendUserBubble(text) {
+  _appendBubble('user').textContent = text;
+}
+
+function appendAssistantBubble() {
+  const div = _appendBubble('assistant');
+  div.innerHTML = '<div class="chat-loading"><span></span><span></span><span></span></div>';
+  return div;
+}
+
+function appendErrorBubble(msg) {
+  const div = _appendBubble('error');
+  div.innerHTML = escapeHtml(msg) +
+    '<br><code>uv run uvicorn server.main:app --reload</code>';
+}
+
+/* ── Send message ─────────────────────────────────────────────────────────── */
+async function sendMessage() {
+  const text = chatInput.value.trim();
+  if (!text) return;
+
+  chatInput.value = '';
+  chatInput.style.height = '';
+  chatSendBtn.disabled = true;
+
+  messages.push({ role: 'user', content: text });
+  appendUserBubble(text);
+
+  const assistantEl = appendAssistantBubble();
+  await streamChatResponse(assistantEl);
+
+  chatSendBtn.disabled = false;
+  chatInput.focus();
+}
+
+chatSendBtn.addEventListener('click', sendMessage);
+
+chatInput.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    sendMessage();
+  }
+});
+
+// Auto-resize textarea
+chatInput.addEventListener('input', () => {
+  chatInput.style.height = 'auto';
+  chatInput.style.height = Math.min(chatInput.scrollHeight, 200) + 'px';
+});
+
+/* ── Sidebar active-section tracking ─────────────────────────────────────── */
+(function () {
+  const headings = Array.from(document.querySelectorAll('.content h2, .content h3'));
+  const navLinks = {};
+  headings.forEach(h => {
+    if (h.id) {
+      const link = document.querySelector(`.sidebar a[href="#${h.id}"]`);
+      if (link) navLinks[h.id] = link;
+    }
+  });
+
+  function updateActive() {
+    let active = null;
+    for (const h of headings) {
+      if (h.getBoundingClientRect().top <= 80) active = h;
+      else break;
+    }
+    Object.values(navLinks).forEach(l => l.classList.remove('active'));
+    if (active && navLinks[active.id]) navLinks[active.id].classList.add('active');
+  }
+
+  window.addEventListener('scroll', updateActive, { passive: true });
+  updateActive();
+})();
+
+/* ── SSE streaming ────────────────────────────────────────────────────────── */
+async function streamChatResponse(assistantEl) {
+  let response;
+  try {
+    response = await fetch('http://localhost:8000/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        messages,
+        context: { ...currentContext, synthesisTopic: SYNTHESIS_TOPIC, memoryDoc: SYNTHESIS_MEMORY },
+      }),
+    });
+  } catch (_) {
+    assistantEl.innerHTML = '';
+    appendErrorBubble('Could not reach the local server. Start it with:');
+    messages.pop(); // remove the user message we just added
+    return;
+  }
+
+  if (!response.ok) {
+    assistantEl.innerHTML = '';
+    appendErrorBubble('Server error ' + response.status + '. Check the server terminal.');
+    messages.pop();
+    return;
+  }
+
+  // Clear loading indicator
+  assistantEl.innerHTML = '';
+  let fullText = '';
+
+  const reader  = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split('\n');
+    buffer = lines.pop();
+    for (const line of lines) {
+      if (!line.startsWith('data: ')) continue;
+      const data = line.slice(6).trim();
+      if (data === '[DONE]') break;
+      try {
+        const parsed = JSON.parse(data);
+        if (parsed.error) {
+          assistantEl.innerHTML = '';
+          appendErrorBubble(parsed.error);
+          messages.pop();
+          return;
+        }
+        if (parsed.reload) {
+          window.location.reload();
+          return;
+        }
+        if (parsed.text) {
+          fullText += parsed.text;
+          assistantEl.textContent = fullText;
+          chatThread.scrollTop = chatThread.scrollHeight;
+        }
+      } catch (_) { /* malformed chunk — ignore */ }
+    }
+  }
+
+  // Add assistant reply to history
+  if (fullText) {
+    messages.push({ role: 'assistant', content: fullText });
+  }
 }

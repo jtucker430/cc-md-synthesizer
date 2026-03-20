@@ -2,7 +2,7 @@
 name: summarize-documents
 description: Generate per-document markdown summaries from PDFs. Detects document type and adapts the summary structure accordingly. Updates references.bib and summaries/manifest.json.
 argument-hint: <path/to/pdf-or-directory> ["optional context"]
-allowed-tools: Bash, Read, Write, Edit, Glob
+allowed-tools: Bash, Read, Write, Edit, Glob, Agent
 ---
 
 # Summarize Documents
@@ -56,6 +56,31 @@ Report: existing bib entries, existing summaries, to process, to skip.
 ---
 
 ### Step 4: Process Each PDF
+
+**When processing multiple PDFs**, dispatch all of them in parallel using the Agent tool — one agent per PDF, all dispatched in the same message. Each agent has access to: `Bash, Read, Write, Glob`. Each agent handles steps 4a–4d independently and writes its own `.md` summary file. Agents must NOT write to `references.bib` or `summaries/manifest.json` — those are shared files written in Step 5. Each agent should return a structured result block:
+
+```
+---BEGIN_AGENT_RESULT---
+STATUS: success | error
+PDF: {pdf_path}
+BIBKEY: {final_bib_key}
+CITATION_METHOD: doi|title|manual
+SUMMARY_PATH: {absolute_path}
+BIBTEX_ENTRY:
+```bibtex
+{complete entry}
+```
+MANIFEST_ENTRY:
+```json
+{ "{BibKey}": { "pdf": "...", "summary": "..." } }
+```
+WARNINGS: {any warnings, or "none"}
+---END_AGENT_RESULT---
+```
+
+On error: `STATUS: error`, `PDF: {path}`, `ERROR: {description}`.
+
+**When processing a single PDF**, agents are optional; you may handle it directly in the main context.
 
 For each PDF marked **process**:
 
@@ -112,9 +137,9 @@ For papers >8 pages: extract strategically:
 2. Write summary using the template for the detected document type per @.claude/reference/summary-format.md
 3. If context was provided in $ARGUMENTS, use it to orient emphasis in the summary (e.g., "focus on methodology")
 
-#### 4e. Update Manifest
+#### 4e. Update Manifest (sequential mode only)
 
-Upsert an entry in `summaries/manifest.json` (create file if absent; add or overwrite the entry for this BibTeX key — do not remove existing entries for other keys):
+When **not** using parallel agents, upsert an entry in `summaries/manifest.json` (create file if absent; add or overwrite the entry for this BibTeX key — do not remove existing entries for other keys):
 
 ```json
 {
@@ -129,12 +154,14 @@ Use the absolute filesystem path (not a relative path).
 
 ---
 
-### Step 5: Compact (Every 5 Documents)
+### Step 5: Consolidate Agent Results (parallel mode only)
 
-After processing every 5 documents, run:
-```
-/compact Compacting after 5 summaries. PRESERVE: (1) task: summarize-documents, (2) documents processed with output paths, (3) documents remaining, (4) warnings/errors, (5) manifest and bib state. DISCARD: all extracted PDF text. Replace PDF extractions with: "Summarized: [filename] → [output path]".
-```
+After all agents have returned, collect their structured result blocks.
+
+1. **Triage**: parse each `---BEGIN_AGENT_RESULT---` block; separate successes from errors (or unparseable output)
+2. **Deduplicate BibTeX keys**: re-read `references.bib` from disk; skip any key already present; if two agents returned the same new key, rename the second with a letter suffix (`b`, `c`, …) and note it in warnings
+3. **Write `references.bib`**: append all new, non-duplicate entries in a single write
+4. **Write `manifest.json`**: read current file (or `{}`), merge all new manifest entries from successful agents, write back
 
 ---
 
@@ -145,7 +172,11 @@ Summarize Documents — Results
 ==============================
 PDFs found:           {total}
 Skipped (exists):     {skipped}
-New summaries:        {created}
+Agents dispatched:    {dispatched}
+  Succeeded:            {success_count}
+  Failed:               {failed_count}
+
+Citation methods (successful):
   Via fbib (DOI):       {doi_count}
   Via fbib (title):     {title_count}
   Via manual extract:   {manual_count}

@@ -26,7 +26,7 @@ If $ARGUMENTS is provided:
 - If the argument resolves to a readable file path on disk → treat as a guidance document, read its contents as framing
 - Otherwise → treat as freetext context orienting the synthesis structure
 
-Also check for `synthesis-guidance.md` at the repo root. If it exists and no argument was provided, read it as the default guidance document. If the file contains only the template placeholder text (i.e., it has not been customized), treat it as if it were absent.
+Also check for `synthesis-guidance.md` in the `synthesis/` directory. If it exists and no argument was provided, read it as the default guidance document. If the file contains only the template placeholder text (i.e., it has not been customized), treat it as if it were absent.
 
 ---
 

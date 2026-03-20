@@ -3,7 +3,10 @@ name = "cc-synthesizer"
 version = "0.1.0"
 description = "Claude Code skill pipeline for PDF ingestion and interactive synthesis"
 requires-python = ">=3.9"
-dependencies = []
+dependencies = [
+    "fastapi>=0.110",
+    "uvicorn[standard]>=0.29",
+]
 
 [dependency-groups]
 dev = [

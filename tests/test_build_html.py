@@ -94,19 +94,22 @@ def test_parse_bib_misc_howpublished():
 # ── Markdown renderer tests ──────────────────────────────────────────────────
 def test_render_headings():
     mod = _load_script()
-    html, title, headings = mod.render_markdown(
+    html, title, headings, _ = mod.render_markdown(
         "# My Title\n\n## Section One\n\n### Sub-section\n"
     )
     assert title == "My Title"
-    assert "<h1>My Title</h1>" in html
+    assert "<h1>My Title</h1>" not in html
     assert 'id="section-one"' in html
-    assert "<h3>Sub-section</h3>" in html
-    assert headings == [("Section One", "section-one")]
+    assert 'id="sub-section"' in html
+    assert headings == [
+        (2, "Section One", "section-one"),
+        (3, "Sub-section", "sub-section"),
+    ]
 
 
 def test_render_paragraph_and_lists():
     mod = _load_script()
-    html, _, _ = mod.render_markdown("A paragraph.\n\n- Item one\n- Item two\n")
+    html, _, _, _ = mod.render_markdown("A paragraph.\n\n- Item one\n- Item two\n")
     assert "<p>A paragraph.</p>" in html
     assert "<ul>" in html
     assert "<li>Item one</li>" in html
@@ -114,14 +117,14 @@ def test_render_paragraph_and_lists():
 
 def test_render_inline_formatting():
     mod = _load_script()
-    html, _, _ = mod.render_markdown("Some **bold** and *italic* text.\n")
+    html, _, _, _ = mod.render_markdown("Some **bold** and *italic* text.\n")
     assert "<strong>bold</strong>" in html
     assert "<em>italic</em>" in html
 
 
 def test_render_citation_placeholder():
     mod = _load_script()
-    html, _, _ = mod.render_markdown(
+    html, _, _, _ = mod.render_markdown(
         "Found X [Smith2023Finding] and Y [Lee2024Review].\n"
     )
     assert 'data-key="Smith2023Finding"' in html
@@ -133,24 +136,33 @@ def test_render_citation_placeholder():
 
 def test_render_html_escaping():
     mod = _load_script()
-    html, _, _ = mod.render_markdown("A paragraph with <script>evil</script>.\n")
+    html, _, _, _ = mod.render_markdown("A paragraph with <script>evil</script>.\n")
     assert "<script>" not in html
     assert "&lt;script&gt;" in html
 
 
 def test_render_heading_inline_formatting():
     mod = _load_script()
-    html, _, _ = mod.render_markdown("## **Bold** Section\n")
+    html, _, _, _ = mod.render_markdown("## **Bold** Section\n")
     assert "<strong>Bold</strong>" in html
 
 
 def test_render_slug_collision():
     mod = _load_script()
-    html, _, headings = mod.render_markdown("## Intro\n\n## Intro\n")
-    assert headings[0][1] == "intro"
-    assert headings[1][1] == "intro-2"
+    html, _, headings, _ = mod.render_markdown("## Intro\n\n## Intro\n")
+    assert headings[0][2] == "intro"
+    assert headings[1][2] == "intro-2"
     assert 'id="intro"' in html
     assert 'id="intro-2"' in html
+
+
+def test_render_doc_count_extraction():
+    mod = _load_script()
+    html, _, _, doc_count = mod.render_markdown(
+        "# Title\n\n*Synthesis of 42 documents.*\n\n## Section\n"
+    )
+    assert doc_count == "42"
+    assert "Synthesis of 42" not in html
 
 
 # ── Citation enrichment tests ────────────────────────────────────────────────────
@@ -223,7 +235,7 @@ def test_build_html_page_structure():
     page = mod.build_html_page(
         title="Test Synthesis",
         body_html='<h2 id="s1">Section One</h2><p>Body text.</p>',
-        h2_headings=[("Section One", "s1")],
+        nav_headings=[(2, "Section One", "s1")],
         memory_doc=None,
         generated_date="2026-03-19",
         missing_keys=[],
@@ -246,7 +258,7 @@ def test_build_html_page_missing_keys_warning():
     page = mod.build_html_page(
         title="T",
         body_html="",
-        h2_headings=[],
+        nav_headings=[],
         memory_doc=None,
         generated_date="2026-03-19",
         missing_keys=["Ghost2020X", "Missing2021Y"],
@@ -261,7 +273,7 @@ def test_build_html_page_memory_doc_embedded():
     page = mod.build_html_page(
         title="T",
         body_html="",
-        h2_headings=[],
+        nav_headings=[],
         memory_doc="## Topic\nAI risk research\n",
         generated_date="2026-03-19",
         missing_keys=[],
@@ -274,7 +286,7 @@ def test_build_html_page_memory_null_when_absent():
     page = mod.build_html_page(
         title="T",
         body_html="",
-        h2_headings=[],
+        nav_headings=[],
         memory_doc=None,
         generated_date="2026-03-19",
         missing_keys=[],

@@ -16,12 +16,14 @@ cd cc-synthesizer
 # 2. Drop PDFs into documents/
 cp ~/papers/*.pdf documents/
 
-# 3. Open Claude Code and run:
-# /create-synthesis
-# /build-html
+# 3. In Claude Code, run:
+/create-synthesis
 
-# 4. Open synthesis/synthesis.html in your browser
+# 4. Then launch the interactive HTML page:
+/launch-synthesis
 ```
+
+`/launch-synthesis` builds the HTML, starts the local server, and opens the page in your browser — with the "Ask Claude" side panel ready to use.
 
 See [`docs/getting-started.md`](docs/getting-started.md) for full instructions.
 
@@ -30,6 +32,6 @@ See [`docs/getting-started.md`](docs/getting-started.md) for full instructions.
 - [`.claude/`](.claude/) — Claude Code skills and reference files
 - [`documents/`](documents/) — Drop your PDFs here
 - [`summaries/`](summaries/) — Auto-generated per-document summaries
-- [`synthesis/`](synthesis/) — Auto-generated synthesis and HTML
-- [`server/`](server/) — Phase 2: local server for in-page Claude interaction
+- [`synthesis/`](synthesis/) — Auto-generated synthesis, HTML, and guidance file
+- [`server/`](server/) — Local FastAPI server for in-page Claude interaction
 - [`docs/`](docs/) — Documentation
