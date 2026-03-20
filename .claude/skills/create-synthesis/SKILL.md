@@ -16,7 +16,7 @@ $ARGUMENTS
 ## Reference
 
 @.claude/reference/synthesis-format.md
-@.claude/reference/bibtex-format.md
+@.claude/reference/citations-format.md
 
 ## Instructions
 
@@ -32,7 +32,7 @@ Also check for `synthesis-guidance.md` in the `synthesis/` directory. If it exis
 
 ### Step 2: Check Pipeline State
 
-1. Check for summary files in `summaries/` (look for `*.md` files; exclude `manifest.json` — it is not a summary)
+1. Check for summary files in `summaries/` (look for `*.md` files)
 2. **If summaries found:** proceed to Step 3
 3. **If no summaries found, but PDFs exist in `documents/`:**
    - Use AskUserQuestion: *"No summaries found. I can run the full pipeline (cleanup → summarize → synthesize). Should I proceed? If yes, is there any context you'd like to pass to the summarization step? (This is separate from any synthesis guidance you've already provided.)"*
@@ -46,9 +46,9 @@ Also check for `synthesis-guidance.md` in the `synthesis/` directory. If it exis
 
 ### Step 3: Load All Summaries
 
-1. Find all `*.md` files in `summaries/` recursively (exclude any file named `manifest.json` or in a directory named `manifest.json`)
+1. Find all `*.md` files in `summaries/` recursively
 2. Read each summary file fully
-3. Read `references.bib`
+3. Read `citations.json` (single `json.load()`)
 
 **Large corpus handling (>30 summaries):**
 Inform the user: "This corpus has {N} summaries. Processing in thematic passes to manage context. For best results, run this in a fresh Claude Code context."
@@ -58,7 +58,7 @@ Process summaries in thematic passes: first pass reads all Metadata blocks and t
 
 ### Step 4: Generate Synthesis
 
-Using the loaded summaries, guidance (if any), and `references.bib`:
+Using the loaded summaries, guidance (if any), and `citations.json`:
 
 1. Identify 3–7 major themes (fewer for small corpora)
 2. Identify key tensions and debates across documents
@@ -68,8 +68,8 @@ Using the loaded summaries, guidance (if any), and `references.bib`:
 6. Select 3–5 recommended entry points for the Reading Guide
 
 Write `synthesis/synthesis.md` per @.claude/reference/synthesis-format.md:
-- Every factual claim tied to a citation `[BibKey]`
-- Keys must match entries in `references.bib`
+- Every factual claim tied to a citation `[@CitKey]`
+- Keys must match entries in `citations.json`
 - Structure adapts to corpus size and type per adaptation rules in synthesis-format.md
 - If guidance was provided (file or freetext), honor it first, then fill in standard sections
 
@@ -88,7 +88,7 @@ Create `synthesis/synthesis-memory.md` with this structure:
 {Derived from the H1 title of synthesis.md}
 
 ## Corpus
-{N} documents. BibTeX keys: {comma-separated list of all keys cited in synthesis.md}
+{N} documents. Citation keys: {comma-separated list of all keys cited in synthesis.md}
 
 ## Key themes
 {Bullet list derived from the Major Themes section headers of synthesis.md}
@@ -110,7 +110,7 @@ Create `synthesis/synthesis-memory.md` with this structure:
 Create Synthesis — Results
 ===========================
 Summaries read:       {N}
-Citations used:       {M distinct BibTeX keys}
+Citations used:       {M distinct citation keys}
 Output:               synthesis/synthesis.md
 Memory stub:          synthesis/synthesis-memory.md ({created|already exists — updated topic/corpus/themes only})
 
