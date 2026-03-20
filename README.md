@@ -20,14 +20,19 @@ Works with academic papers, industry reports, white papers, technical docs — a
 # 1. Clone the repo
 git clone https://github.com/your-username/cc-synthesizer
 cd cc-synthesizer
+```
 
-# 2. Drop PDFs into documents/
-cp ~/papers/*.pdf documents/
+**2.** Drop your PDFs into the `documents/` folder.
 
-# 3. In Claude Code, run the full pipeline:
+**3.** Start Claude Code in the project directory and run the full pipeline:
+
+```
 /create-synthesis
+```
 
-# 4. Launch the interactive HTML page:
+**4.** Still in Claude Code, launch the interactive HTML page:
+
+```
 /launch-synthesis
 ```
 
