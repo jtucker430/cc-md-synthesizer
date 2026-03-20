@@ -312,10 +312,14 @@ def main():
         )
 
     # Read inputs
-    md_text = synthesis_md.read_text()
-    bib_text = references_bib.read_text()
-    manifest = json.loads(manifest_json.read_text()) if manifest_json.exists() else {}
-    memory_doc = memory_md.read_text() if memory_md.exists() else None
+    md_text = synthesis_md.read_text(encoding="utf-8")
+    bib_text = references_bib.read_text(encoding="utf-8")
+    manifest = (
+        json.loads(manifest_json.read_text(encoding="utf-8"))
+        if manifest_json.exists()
+        else {}
+    )
+    memory_doc = memory_md.read_text(encoding="utf-8") if memory_md.exists() else None
 
     # Parse and render
     body_html, detected_title, h2_headings = render_markdown(md_text)
@@ -336,7 +340,7 @@ def main():
         generated_date=date.today().isoformat(),
         missing_keys=missing_keys,
     )
-    output_html.write_text(page)
+    output_html.write_text(page, encoding="utf-8")
 
     # Report
     print(
