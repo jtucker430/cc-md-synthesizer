@@ -6,29 +6,41 @@ import importlib.util
 
 
 # ── constants ────────────────────────────────────────────────────────────────
-BIB_SAMPLE = r"""
-@article{Smith2023Finding,
-  author    = {Smith, John and Doe, Alice},
-  title     = {A Study of Things},
-  journal   = {Journal of Examples},
-  year      = {2023},
-  doi       = {10.1234/example},
+CITATIONS_SAMPLE = {
+    "Smith2023Finding": {
+        "title": "A Study of Things",
+        "authors": "Smith, John and Doe, Alice",
+        "year": "2023",
+        "venue": "Journal of Examples",
+        "doi": "10.1234/example",
+        "url": "https://doi.org/10.1234/example",
+        "type": "article",
+        "pdf": "",
+        "summary": "",
+    },
+    "Lee2024Review": {
+        "title": "Conference Paper Title",
+        "authors": "Lee, Bob",
+        "year": "2024",
+        "venue": "Proceedings of Something",
+        "doi": "",
+        "url": "",
+        "type": "inproceedings",
+        "pdf": "",
+        "summary": "",
+    },
+    "Jones2022Debate": {
+        "title": "Opinion Piece",
+        "authors": "Jones, Carol",
+        "year": "2022",
+        "venue": "Policy Report",
+        "doi": "",
+        "url": "",
+        "type": "misc",
+        "pdf": "",
+        "summary": "",
+    },
 }
-
-@inproceedings{Lee2024Review,
-  author    = {Lee, Bob},
-  title     = {Conference Paper Title},
-  booktitle = {Proceedings of Something},
-  year      = {2024},
-}
-
-@misc{Jones2022Debate,
-  author       = {Jones, Carol},
-  title        = {Opinion Piece},
-  howpublished = {Policy Report},
-  year         = {2022},
-}
-"""
 
 
 # ── helper ──────────────────────────────────────────────────────────────────
@@ -62,48 +74,21 @@ def test_cli_missing_synthesis(tmp_path):
     assert "synthesis" in output.lower()
 
 
-# ── BibTeX parser tests ──────────────────────────────────────────────────────
-def test_parse_bib_article():
-    mod = _load_script()
-    result = mod.parse_bib(BIB_SAMPLE)
-    assert "Smith2023Finding" in result
-    entry = result["Smith2023Finding"]
-    assert entry["title"] == "A Study of Things"
-    assert "Smith, John" in entry["authors"]
-    assert entry["year"] == "2023"
-    assert entry["venue"] == "Journal of Examples"
-    assert entry["doi"] == "10.1234/example"
-
-
-def test_parse_bib_inproceedings():
-    mod = _load_script()
-    result = mod.parse_bib(BIB_SAMPLE)
-    entry = result["Lee2024Review"]
-    assert entry["venue"] == "Proceedings of Something"
-    assert entry["doi"] == ""
-
-
-def test_parse_bib_misc_howpublished():
-    mod = _load_script()
-    result = mod.parse_bib(BIB_SAMPLE)
-    entry = result["Jones2022Debate"]
-    assert entry["venue"] == "Policy Report"
-    assert entry["doi"] == ""
-
-
 # ── Markdown renderer tests ──────────────────────────────────────────────────
 def test_render_headings():
     mod = _load_script()
     html, title, headings, _ = mod.render_markdown(
-        "# My Title\n\n## Section One\n\n### Sub-section\n"
+        "# My Title\n\n## Section One\n\n### Sub-section\n\n#### Deep\n"
     )
     assert title == "My Title"
     assert "<h1>My Title</h1>" not in html
     assert 'id="section-one"' in html
     assert 'id="sub-section"' in html
+    assert 'id="deep"' in html
     assert headings == [
         (2, "Section One", "section-one"),
         (3, "Sub-section", "sub-section"),
+        (4, "Deep", "deep"),
     ]
 
 
@@ -125,7 +110,7 @@ def test_render_inline_formatting():
 def test_render_citation_placeholder():
     mod = _load_script()
     html, _, _, _ = mod.render_markdown(
-        "Found X [Smith2023Finding] and Y [Lee2024Review].\n"
+        "Found X [@Smith2023Finding] and Y [@Lee2024Review].\n"
     )
     assert 'data-key="Smith2023Finding"' in html
     assert 'data-key="Lee2024Review"' in html
@@ -169,22 +154,20 @@ def test_render_doc_count_extraction():
 def test_enrich_citations_full():
     mod = _load_script()
     html = '<p>See <cite data-key="Smith2023Finding">[Smith2023Finding]</cite>.</p>'
-    bib = {
+    citations = {
         "Smith2023Finding": {
             "title": "A Study of X",
             "authors": "Smith, J.",
             "year": "2023",
             "venue": "J. Example",
             "doi": "10.1234/x",
-        }
-    }
-    manifest = {
-        "Smith2023Finding": {
+            "url": "https://doi.org/10.1234/x",
+            "type": "article",
             "pdf": "/abs/path/doc.pdf",
             "summary": "/abs/path/summary.md",
         }
     }
-    result, missing = mod.enrich_citations(html, bib, manifest)
+    result, missing = mod.enrich_citations(html, citations)
     assert missing == []
     assert 'data-title="A Study of X"' in result
     assert 'data-year="2023"' in result
@@ -196,7 +179,7 @@ def test_enrich_citations_full():
 def test_enrich_citations_missing_from_bib():
     mod = _load_script()
     html = '<cite data-key="Ghost2000X">[Ghost2000X]</cite>'
-    result, missing = mod.enrich_citations(html, {}, {})
+    result, missing = mod.enrich_citations(html, {})
     assert "Ghost2000X" in missing
     assert 'data-key="Ghost2000X"' in result
 
@@ -204,16 +187,20 @@ def test_enrich_citations_missing_from_bib():
 def test_enrich_citations_in_bib_not_in_manifest():
     mod = _load_script()
     html = '<cite data-key="Known2021Y">[Known2021Y]</cite>'
-    bib = {
+    citations = {
         "Known2021Y": {
             "title": "T",
             "authors": "A",
             "year": "2021",
             "venue": "V",
             "doi": "",
+            "url": "",
+            "type": "",
+            "pdf": "",
+            "summary": "",
         }
     }
-    result, missing = mod.enrich_citations(html, bib, {})
+    result, missing = mod.enrich_citations(html, citations)
     assert missing == []
     assert 'data-pdf=""' in result
     assert 'data-summary=""' in result
@@ -222,9 +209,20 @@ def test_enrich_citations_in_bib_not_in_manifest():
 def test_enrich_citations_already_file_url():
     mod = _load_script()
     html = '<cite data-key="K">[K]</cite>'
-    bib = {"K": {"title": "T", "authors": "A", "year": "2020", "venue": "V", "doi": ""}}
-    manifest = {"K": {"pdf": "file:///already/prefixed.pdf", "summary": ""}}
-    result, _ = mod.enrich_citations(html, bib, manifest)
+    citations = {
+        "K": {
+            "title": "T",
+            "authors": "A",
+            "year": "2020",
+            "venue": "V",
+            "doi": "",
+            "url": "",
+            "type": "",
+            "pdf": "file:///already/prefixed.pdf",
+            "summary": "",
+        }
+    }
+    result, _ = mod.enrich_citations(html, citations)
     assert 'data-pdf="file:///already/prefixed.pdf"' in result
     assert "file://file://" not in result
 
@@ -298,7 +296,6 @@ def test_build_html_page_memory_null_when_absent():
 def test_end_to_end(tmp_path):
     """Full pipeline: real fixture files -> synthesis.html written and validated."""
     (tmp_path / "synthesis").mkdir()
-    (tmp_path / "summaries").mkdir()
 
     (tmp_path / "synthesis" / "synthesis.md").write_text(
         textwrap.dedent("""\
@@ -306,36 +303,37 @@ def test_end_to_end(tmp_path):
 
         ## Major Themes
 
-        Research finds X [Smith2023Finding] and Y [Lee2024Review].
+        Research finds X [@Smith2023Finding] and Y [@Lee2024Review].
 
         - Point one
         - Point two
     """)
     )
-    (tmp_path / "references.bib").write_text(
-        textwrap.dedent(r"""
-        @article{Smith2023Finding,
-          author  = {Smith, John},
-          title   = {A Study of X},
-          journal = {J. Example},
-          year    = {2023},
-          doi     = {10.1234/x},
-        }
-        @inproceedings{Lee2024Review,
-          author    = {Lee, Bob},
-          title     = {A Review of Y},
-          booktitle = {Proc. Something},
-          year      = {2024},
-        }
-    """)
-    )
-    (tmp_path / "summaries" / "manifest.json").write_text(
+    (tmp_path / "citations.json").write_text(
         json.dumps(
             {
                 "Smith2023Finding": {
+                    "title": "A Study of X",
+                    "authors": "Smith, John",
+                    "year": "2023",
+                    "venue": "J. Example",
+                    "doi": "10.1234/x",
+                    "url": "https://doi.org/10.1234/x",
+                    "type": "article",
                     "pdf": "/docs/smith.pdf",
                     "summary": "/summaries/smith.md",
-                }
+                },
+                "Lee2024Review": {
+                    "title": "A Review of Y",
+                    "authors": "Lee, Bob",
+                    "year": "2024",
+                    "venue": "Proc. Something",
+                    "doi": "",
+                    "url": "",
+                    "type": "inproceedings",
+                    "pdf": "",
+                    "summary": "",
+                },
             }
         )
     )
@@ -352,10 +350,10 @@ def test_end_to_end(tmp_path):
     # Structure
     assert "<!DOCTYPE html>" in html
     assert "<title>Test Synthesis</title>" in html
-    assert "style.css" in html  # CSS linked
-    assert "script.js" in html  # JS linked
-    assert "SYNTHESIS_MEMORY" in html  # inline const block present
-    assert "SYNTHESIS_TOPIC" in html  # inline const block present
+    assert "style.css" in html
+    assert "script.js" in html
+    assert "SYNTHESIS_MEMORY" in html
+    assert "SYNTHESIS_TOPIC" in html
 
     # Citations
     assert 'data-key="Smith2023Finding"' in html
@@ -364,7 +362,7 @@ def test_end_to_end(tmp_path):
     assert 'data-pdf="file:///docs/smith.pdf"' in html
     assert 'data-summary="file:///summaries/smith.md"' in html
 
-    # Lee2024Review is in bib but not manifest -> metadata present, paths empty
+    # Lee2024Review is in citations but has no paths -> metadata present, paths empty
     assert 'data-key="Lee2024Review"' in html
     assert 'data-title="A Review of Y"' in html
 

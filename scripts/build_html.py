@@ -20,42 +20,10 @@ from datetime import date
 from pathlib import Path
 from typing import Optional
 
+from markdown_it import MarkdownIt
+
 # Use html.escape() for safe HTML escaping
 escape = html.escape
-
-
-def parse_bib(text: str) -> dict:
-    """Parse BibTeX text → {key: {title, authors, year, venue, doi}}.
-
-    Handles @article, @inproceedings, @misc, and any other entry type.
-    venue = first of: journal > booktitle > howpublished.
-    doi   = bare DOI string (no https://doi.org/ prefix).
-    """
-    entries = {}
-    for block in re.finditer(r"@\w+\{(\w+),(.*?)\n\}", text, re.DOTALL):
-        key = block.group(1).strip()
-        body = block.group(2)
-
-        def field(name: str) -> str:
-            m = re.search(
-                rf"\b{name}\s*=\s*\{{(.*?)\}}",
-                body,
-                re.DOTALL | re.IGNORECASE,
-            )
-            return m.group(1).strip().strip("{}") if m else ""
-
-        venue = field("journal") or field("booktitle") or field("howpublished")
-        entries[key] = {
-            "title": field("title"),
-            "authors": field("author"),
-            "year": field("year"),
-            "venue": venue,
-            "doi": field("doi"),
-        }
-    return entries
-
-
-_ORDERED_LIST_RE = re.compile(r"^\d+\.\s")
 
 
 def _slugify(text: str) -> str:
@@ -74,29 +42,45 @@ def _unique_slug(text: str, used_slugs: dict[str, int]) -> str:
     return f"{raw}-{used_slugs[raw]}"
 
 
-def _apply_inline(text: str) -> str:
-    """Apply bold, italic, and citation substitutions to already-HTML-escaped text.
+def _citation_rule(state, silent: bool) -> bool:
+    """markdown-it-py inline rule: convert [@CitKey] to <cite> placeholders."""
+    pos = state.pos
+    src = state.src
 
-    Safe because *, [ are not HTML special characters and survive html.escape().
-    Citation keys (AuthorYearKeyword) also contain no special HTML chars.
-    """
+    # Must start with [@
+    if src[pos : pos + 2] != "[@":
+        return False
 
-    # [BibKey] or [Key1, Key2] -> <cite> placeholders (metadata filled in by enrich_citations)
-    def _cite_group_sub(m: re.Match) -> str:
-        keys = [k.strip() for k in m.group(1).split(",")]
-        if len(keys) == 1:
-            return f'<cite data-key="{keys[0]}">[{keys[0]}]</cite>'
-        cites = ", ".join(f'<cite data-key="{k}">{k}</cite>' for k in keys)
-        return f"[{cites}]"
+    # Find closing ]
+    end = src.find("]", pos + 2)
+    if end == -1:
+        return False
 
-    text = re.sub(
-        r"\[([A-Za-z][A-Za-z0-9]+(?:,\s*[A-Za-z][A-Za-z0-9]+)*)\]",
-        _cite_group_sub,
-        text,
-    )
-    text = re.sub(r"\*\*(.+?)\*\*", r"<strong>\1</strong>", text)
-    text = re.sub(r"\*(.+?)\*", r"<em>\1</em>", text)
-    return text
+    inner = src[pos + 2 : end]  # everything between [@ and ]
+    keys = [k.strip().lstrip("@") for k in inner.split(",")]
+
+    # Validate: every key must be non-empty and start with a letter
+    if not all(k and k[0].isalpha() for k in keys):
+        return False
+
+    if silent:
+        return True
+
+    # Emit HTML
+    if len(keys) == 1:
+        k = escape(keys[0])
+        html_out = f'<cite data-key="{k}">[{k}]</cite>'
+    else:
+        parts = ", ".join(
+            f'<cite data-key="{escape(k)}">{escape(k)}</cite>' for k in keys
+        )
+        html_out = f"[{parts}]"
+
+    token = state.push("html_inline", "", 0)
+    token.content = html_out
+
+    state.pos = end + 1
+    return True
 
 
 def _file_url(path: str) -> str:
@@ -108,39 +92,39 @@ def _file_url(path: str) -> str:
     return "file://" + path
 
 
-def enrich_citations(html: str, bib: dict, manifest: dict) -> tuple:
+def enrich_citations(html: str, citations: dict) -> tuple:
     """Replace <cite data-key="K">[K]</cite> placeholders with full data-* attribute sets.
 
     Args:
-        html:     HTML body from render_markdown (contains bare cite placeholders)
-        bib:      {key: {title, authors, year, venue, doi}} from parse_bib
-        manifest: {key: {pdf, summary}} from manifest.json
+        html:      HTML body from render_markdown (contains bare cite placeholders)
+        citations: {key: {title, authors, year, venue, doi, pdf, summary, ...}} from citations.json
 
     Returns:
         (enriched_html, missing_keys)
         - enriched_html: HTML with fully-attributed <cite> elements
-        - missing_keys:  list of keys found in html but absent from bib
+        - missing_keys:  list of keys found in html but absent from citations
     """
     missing: list[str] = []
 
     def replace_cite(m: re.Match) -> str:
         key = m.group(1)
-        if key not in bib:
+        if key not in citations:
             if key not in missing:
                 missing.append(key)
             return m.group(0)  # leave as-is
-        meta = bib[key]
-        paths = manifest.get(key, {})
+        meta = citations[key]
+        pdf_url = escape(_file_url(meta.get("pdf", "")))
+        summ_url = escape(_file_url(meta.get("summary", "")))
         attrs = " ".join(
             [
                 f'data-key="{escape(key)}"',
-                f'data-title="{escape(meta["title"])}"',
-                f'data-authors="{escape(meta["authors"])}"',
-                f'data-year="{escape(meta["year"])}"',
-                f'data-venue="{escape(meta["venue"])}"',
-                f'data-doi="{escape(meta["doi"])}"',
-                f'data-pdf="{escape(_file_url(paths.get("pdf", "")))}"',
-                f'data-summary="{escape(_file_url(paths.get("summary", "")))}"',
+                f'data-title="{escape(meta.get("title", ""))}"',
+                f'data-authors="{escape(meta.get("authors", ""))}"',
+                f'data-year="{escape(meta.get("year", ""))}"',
+                f'data-venue="{escape(meta.get("venue", ""))}"',
+                f'data-doi="{escape(meta.get("doi", ""))}"',
+                f'data-pdf="{pdf_url}"',
+                f'data-summary="{summ_url}"',
             ]
         )
         return f"<cite {attrs}>[{escape(key)}]</cite>"
@@ -151,117 +135,59 @@ def enrich_citations(html: str, bib: dict, manifest: dict) -> tuple:
 
 
 def render_markdown(text: str) -> tuple[str, str, list[tuple[int, str, str]], str]:
-    """Convert synthesis.md markdown subset to HTML.
+    """Convert synthesis.md markdown subset to HTML using markdown-it-py.
 
     Returns:
         (html_body, title, nav_headings, doc_count)
-        - html_body:    rendered HTML string
+        - html_body:    rendered HTML string (H1 suppressed)
         - title:        text of the first H1 (empty string if none)
-        - nav_headings: list of (level, display_text, slug) tuples, in document order
+        - nav_headings: list of (level, display_text, slug) for h2/h3/h4, in order
         - doc_count:    number of documents from metadata line (empty string if none)
     """
-    lines = text.splitlines()
-    html_parts: list[str] = []
-    nav_headings: list[tuple[int, str, str]] = []
+    md = MarkdownIt("commonmark", {"html": False}).enable("table")
+    md.inline.ruler.before("link", "citation", _citation_rule)
+
+    tokens = md.parse(text)
+
+    # ── Extract and suppress the first H1 ───────────────────────────────────
     title = ""
-    doc_count = ""
     i = 0
-    used_slugs: dict[str, int] = {}  # slug -> count of uses so far
+    while i < len(tokens):
+        if tokens[i].type == "heading_open" and tokens[i].tag == "h1":
+            inline_tok = tokens[i + 1]  # always present after heading_open
+            title = inline_tok.content
+            # Remove the triplet: heading_open, inline, heading_close
+            tokens.pop(i)  # heading_open
+            tokens.pop(i)  # inline (shifted down)
+            tokens.pop(i)  # heading_close (shifted down)
+            break
+        i += 1
 
-    while i < len(lines):
-        line = lines[i]
+    # ── Collect nav headings (h2, h3, h4) ───────────────────────────────────
+    used_slugs: dict[str, int] = {}
+    nav_headings: list[tuple[int, str, str]] = []
+    for j, tok in enumerate(tokens):
+        if tok.type == "heading_open" and tok.tag in ("h2", "h3", "h4"):
+            level = int(tok.tag[1])
+            inline_content = tokens[j + 1].content  # raw markdown source
+            slug = _unique_slug(inline_content, used_slugs)
+            nav_headings.append((level, inline_content, slug))
+            # Inject id attribute on the heading_open token
+            tok.attrSet("id", slug)
 
-        if line.startswith("# "):
-            content = line[2:].strip()
-            if not title:
-                title = content
-                # skip: don't add first H1 to html_parts
-            else:
-                html_parts.append(f"<h1>{_apply_inline(escape(content))}</h1>")
-            i += 1
+    # ── Render ───────────────────────────────────────────────────────────────
+    body_html = md.renderer.render(tokens, md.options, {})
 
-        elif line.startswith("## "):
-            content = line[3:].strip()
-            slug = _unique_slug(content, used_slugs)
-            nav_headings.append((2, content, slug))
-            html_parts.append(f'<h2 id="{slug}">{_apply_inline(escape(content))}</h2>')
-            i += 1
+    # ── Extract and suppress doc-count metadata line ─────────────────────────
+    doc_count = ""
+    m = re.search(r"<p><em>Synthesis of (\d+) documents\.", body_html)
+    if m:
+        doc_count = m.group(1)
+        body_html = re.sub(
+            r"<p><em>Synthesis of \d+ documents\..*?</em></p>", "", body_html
+        )
 
-        elif line.startswith("### "):
-            content = line[4:].strip()
-            slug = _unique_slug(content, used_slugs)
-            nav_headings.append((3, content, slug))
-            html_parts.append(f'<h3 id="{slug}">{_apply_inline(escape(content))}</h3>')
-            i += 1
-
-        elif line.startswith("- "):
-            items = []
-            while i < len(lines) and lines[i].startswith("- "):
-                item_text = _apply_inline(escape(lines[i][2:].strip()))
-                items.append(f"<li>{item_text}</li>")
-                i += 1
-            html_parts.append("<ul>" + "".join(items) + "</ul>")
-
-        elif _ORDERED_LIST_RE.match(line):
-            items = []
-            while i < len(lines) and _ORDERED_LIST_RE.match(lines[i]):
-                item_text = _apply_inline(
-                    escape(_ORDERED_LIST_RE.sub("", lines[i], count=1))
-                )
-                items.append(f"<li>{item_text}</li>")
-                i += 1
-            html_parts.append("<ol>" + "".join(items) + "</ol>")
-
-        elif line.strip() == "":
-            i += 1
-
-        elif line.startswith("|"):
-            # Collect all consecutive pipe-delimited lines
-            table_lines = []
-            while i < len(lines) and lines[i].strip().startswith("|"):
-                table_lines.append(lines[i])
-                i += 1
-            if len(table_lines) >= 2:
-
-                def parse_row(row_line):
-                    return [c.strip() for c in row_line.strip().strip("|").split("|")]
-
-                header_cells = parse_row(table_lines[0])
-                # table_lines[1] is the separator row — skip it
-                body_rows = [parse_row(r) for r in table_lines[2:]]
-                ths = "".join(
-                    f"<th>{_apply_inline(escape(h))}</th>" for h in header_cells
-                )
-                trs = "".join(
-                    "<tr>"
-                    + "".join(f"<td>{_apply_inline(escape(c))}</td>" for c in row)
-                    + "</tr>"
-                    for row in body_rows
-                )
-                html_parts.append(
-                    f"<table><thead><tr>{ths}</tr></thead><tbody>{trs}</tbody></table>"
-                )
-
-        else:
-            # Accumulate a paragraph (stop at blank line, heading, or list item)
-            para_lines = []
-            while (
-                i < len(lines)
-                and lines[i].strip() != ""
-                and not lines[i].startswith("#")
-                and not lines[i].startswith("- ")
-                and not _ORDERED_LIST_RE.match(lines[i])
-            ):
-                para_lines.append(lines[i])
-                i += 1
-            para_text = " ".join(para_lines)
-            m = re.match(r"^\*Synthesis of (\d+) documents[\.,]", para_text)
-            if m:
-                doc_count = m.group(1)
-            else:
-                html_parts.append(f"<p>{_apply_inline(escape(para_text))}</p>")
-
-    return "\n".join(html_parts), title, nav_headings, doc_count
+    return body_html, title, nav_headings, doc_count
 
 
 def build_html_page(
@@ -289,9 +215,9 @@ def build_html_page(
 
     warning_comment = ""
     if missing_keys:
-        keys_str = ", ".join(f"[{k}]" for k in missing_keys)
+        keys_str = ", ".join(f"[@{k}]" for k in missing_keys)
         warning_comment = (
-            f"\n<!-- WARNING: The following citation keys were not found in references.bib:\n"
+            f"\n<!-- WARNING: The following citation keys were not found in citations.json:\n"
             f"     {keys_str}\n"
             f"     These <cite> elements have no metadata. "
             f"Re-run /summarize-documents if needed. -->"
@@ -361,8 +287,7 @@ def main():
 
     root = Path(args.root) if args.root else Path.cwd()
     synthesis_md = root / "synthesis" / "synthesis.md"
-    references_bib = root / "references.bib"
-    manifest_json = root / "summaries" / "manifest.json"
+    citations_json = root / "citations.json"
     memory_md = root / "synthesis" / "synthesis-memory.md"
     output_html = root / "synthesis" / "synthesis.html"
 
@@ -373,38 +298,25 @@ def main():
             file=sys.stderr,
         )
         sys.exit(1)
-    if not references_bib.exists():
+    if not citations_json.exists():
         print(
-            "ERROR: references.bib not found. Run /summarize-documents first.",
+            "ERROR: citations.json not found. Run /summarize-documents first.",
             file=sys.stderr,
         )
         sys.exit(1)
-    if not manifest_json.exists():
-        print(
-            "WARNING: summaries/manifest.json not found; "
-            "citation file paths will be empty. "
-            "Re-running /summarize-documents will fix this.",
-            file=sys.stderr,
-        )
 
     # Read inputs
     md_text = synthesis_md.read_text(encoding="utf-8")
-    bib_text = references_bib.read_text(encoding="utf-8")
-    manifest = (
-        json.loads(manifest_json.read_text(encoding="utf-8"))
-        if manifest_json.exists()
-        else {}
-    )
+    citations = json.loads(citations_json.read_text(encoding="utf-8"))
     memory_doc = memory_md.read_text(encoding="utf-8") if memory_md.exists() else None
 
     # Parse and render
     body_html, detected_title, nav_headings, doc_count = render_markdown(md_text)
     title = args.title or detected_title or "Synthesis"
-    bib = parse_bib(bib_text)
-    body_html, missing_keys = enrich_citations(body_html, bib, manifest)
+    body_html, missing_keys = enrich_citations(body_html, citations)
 
     # Count citations in source (for report)
-    total_refs = len(re.findall(r"\[[A-Za-z][A-Za-z0-9]+\]", md_text))
+    total_refs = len(re.findall(r"@[A-Za-z][A-Za-z0-9]+", md_text))
     resolved = total_refs - len(missing_keys)
 
     # Assemble and write
@@ -426,13 +338,13 @@ def main():
         f"Input:      synthesis/synthesis.md\n"
         f"Output:     synthesis/synthesis.html\n"
         f"Citations:  {resolved} / {total_refs} "
-        f"({len(missing_keys)} missing from references.bib)\n\n"
+        f"({len(missing_keys)} missing from citations.json)\n\n"
         f"Open synthesis/synthesis.html in your browser to view the interactive synthesis."
     )
     if missing_keys:
         print("\nMissing citation keys:")
         for k in missing_keys:
-            print(f"  [{k}]")
+            print(f"  [@{k}]")
 
 
 if __name__ == "__main__":
