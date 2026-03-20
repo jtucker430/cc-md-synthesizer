@@ -15,6 +15,9 @@ references.bib
 !summaries/README.md
 # (synthesis/ is not ignored globally, so no negation needed for synthesis/README.md)
 
+# Worktrees
+.worktrees/
+
 # Python / environment
 .venv/
 __pycache__/
