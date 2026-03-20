@@ -30,11 +30,17 @@ cd cc-synthesizer
 /create-synthesis
 ```
 
+Claude Code will go to work generating the summaries for all of the documents and then synthesizing them.
+This will take some time and will depend on the number of documents.
+Once complete...
+
 **4.** Still in Claude Code, launch the interactive HTML page:
 
 ```
 /launch-synthesis
 ```
+
+Note: you may want to use the Claude Code `/clear` command before running the above to reset your context window.
 
 **5.** In a new terminal window, start the local server:
 
