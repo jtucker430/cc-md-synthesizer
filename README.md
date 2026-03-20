@@ -34,9 +34,12 @@ cd cc-synthesizer
 
 ```
 /launch-synthesis
+
+# 5. In a new terminal window, start the local server:
+uv run uvicorn server.main:app --reload
 ```
 
-`/launch-synthesis` builds the HTML, starts the local server, and opens the page in your browser with the "Ask Claude" side panel ready to use.
+`/launch-synthesis` builds the HTML and opens the page in your browser. Start the local server in a new terminal (step 5) to enable the "Ask Claude" side panel — closing that terminal stops the server.
 
 No separate API key needed — the Ask Claude feature uses your existing Claude Code subscription.
 
@@ -107,13 +110,13 @@ After `/launch-synthesis` opens the page:
 - **Hover a citation** → tooltip with title, authors, year, venue, and links to open the source PDF and view the summary
 - **Select any text → "Ask Claude"** → a side panel slides in with a streaming Claude response, pre-loaded with the selected passage, the relevant citations, and your synthesis memory context
 
-The local server runs at `http://localhost:8000` in the background. `/launch-synthesis` reports its PID so you can stop it when done:
+The local server must be running for the "Ask Claude" side panel to work. `/launch-synthesis` opens the HTML page and then prompts you to start the server yourself in a **new terminal window**:
 
 ```bash
-kill <PID>
-# or
-pkill -f "uvicorn server.main:app"
+uv run uvicorn server.main:app --reload
 ```
+
+Closing that terminal window automatically stops the server — no cleanup needed.
 
 ---
 
