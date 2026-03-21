@@ -139,6 +139,9 @@ function showToast(message) {
   }, 2500);
 }
 
+const SERVER_BASE_URL = 'http://localhost:8000';
+const SERVER_UNREACHABLE_MSG = 'Could not reach the local server. Start it with:';
+
 /* ── Chat panel ───────────────────────────────────────────────────────────── */
 const chatPanel     = document.getElementById('response-panel');
 const chatThread    = document.getElementById('chat-thread');
@@ -168,8 +171,10 @@ function handleAskClaude(selectionCtx) {
 
   // Pre-populate input with a context block; user fills in their question
   chatInput.value = buildContextBlock(selectionCtx);
+  resizeTextarea();
 
   chatPanel.classList.add('open');
+  checkServerAndWarn();
   chatInput.focus();
   // Place cursor at end
   chatInput.setSelectionRange(chatInput.value.length, chatInput.value.length);
@@ -183,6 +188,17 @@ function buildContextBlock(ctx) {
   if (citLine) block += `\nCitations: ${citLine}`;
   block += `\n</context>\n\nMy question: `;
   return block;
+}
+
+let serverReachable = false;
+async function checkServerAndWarn() {
+  if (serverReachable) return;
+  try {
+    await fetch(SERVER_BASE_URL + '/health', { signal: AbortSignal.timeout(1500) });
+    serverReachable = true;
+  } catch (_) {
+    appendErrorBubble(SERVER_UNREACHABLE_MSG);
+  }
 }
 
 /* ── Message rendering ────────────────────────────────────────────────────── */
@@ -238,10 +254,35 @@ chatInput.addEventListener('keydown', e => {
   }
 });
 
-// Auto-resize textarea
-chatInput.addEventListener('input', () => {
+function resizeTextarea() {
   chatInput.style.height = 'auto';
   chatInput.style.height = Math.min(chatInput.scrollHeight, 200) + 'px';
+}
+
+// Auto-resize textarea
+chatInput.addEventListener('input', resizeTextarea);
+
+/* ── Panel drag-to-resize ─────────────────────────────────────────────────── */
+const resizeHandle = document.getElementById('panel-resize-handle');
+let isResizing = false;
+
+resizeHandle.addEventListener('mousedown', (e) => {
+  isResizing = true;
+  document.body.style.userSelect = 'none';
+  e.preventDefault();
+});
+
+document.addEventListener('mousemove', (e) => {
+  if (!isResizing) return;
+  const newWidth = window.innerWidth - e.clientX;
+  const clamped = Math.max(320, Math.min(newWidth, window.innerWidth * 0.95));
+  chatPanel.style.width = clamped + 'px';
+});
+
+document.addEventListener('mouseup', () => {
+  if (!isResizing) return;
+  isResizing = false;
+  document.body.style.userSelect = '';
 });
 
 /* ── Sidebar active-section tracking ─────────────────────────────────────── */
@@ -273,7 +314,7 @@ chatInput.addEventListener('input', () => {
 async function streamChatResponse(assistantEl) {
   let response;
   try {
-    response = await fetch('http://localhost:8000/chat', {
+    response = await fetch(SERVER_BASE_URL + '/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -283,7 +324,7 @@ async function streamChatResponse(assistantEl) {
     });
   } catch (_) {
     assistantEl.innerHTML = '';
-    appendErrorBubble('Could not reach the local server. Start it with:');
+    appendErrorBubble(SERVER_UNREACHABLE_MSG);
     messages.pop(); // remove the user message we just added
     return;
   }

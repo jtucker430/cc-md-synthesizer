@@ -57,7 +57,7 @@ def _citation_rule(state, silent: bool) -> bool:
         return False
 
     inner = src[pos + 2 : end]  # everything between [@ and ]
-    keys = [k.strip().lstrip("@") for k in inner.split(",")]
+    keys = [k.strip().lstrip("@") for k in re.split(r"[,;]", inner)]
 
     # Validate: every key must be non-empty and start with a letter
     if not all(k and k[0].isalpha() for k in keys):
@@ -134,15 +134,18 @@ def enrich_citations(html: str, citations: dict) -> tuple:
     return enriched, missing
 
 
-def render_markdown(text: str) -> tuple[str, str, list[tuple[int, str, str]], str]:
+def render_markdown(
+    text: str,
+) -> tuple[str, str, list[tuple[int, str, str]], str, list[str]]:
     """Convert synthesis.md markdown subset to HTML using markdown-it-py.
 
     Returns:
-        (html_body, title, nav_headings, doc_count)
+        (html_body, title, nav_headings, doc_count, warnings)
         - html_body:    rendered HTML string (H1 suppressed)
         - title:        text of the first H1 (empty string if none)
-        - nav_headings: list of (level, display_text, slug) for h2/h3/h4, in order
+        - nav_headings: list of (level, display_text, slug) for h2–h6, in order
         - doc_count:    number of documents from metadata line (empty string if none)
+        - warnings:     list of structural warning strings
     """
     md = MarkdownIt("commonmark", {"html": False}).enable("table")
     md.inline.ruler.before("link", "citation", _citation_rule)
@@ -163,16 +166,33 @@ def render_markdown(text: str) -> tuple[str, str, list[tuple[int, str, str]], st
             break
         i += 1
 
-    # ── Collect nav headings (h2, h3, h4) ───────────────────────────────────
+    # ── Collect nav headings (h2–h6); detect extra H1s and level jumps ──────
+    warnings: list[str] = []
     used_slugs: dict[str, int] = {}
     nav_headings: list[tuple[int, str, str]] = []
+    prev_level: int = 0
+    found_extra_h1 = False
     for j, tok in enumerate(tokens):
-        if tok.type == "heading_open" and tok.tag in ("h2", "h3", "h4"):
+        if tok.type != "heading_open":
+            continue
+        if tok.tag == "h1" and not found_extra_h1:
+            warnings.append(
+                "Multiple H1 headings found. Only the first is used as the "
+                "page title; subsequent H1s may indicate a structural error in synthesis.md."
+            )
+            found_extra_h1 = True
+        elif tok.tag[0] == "h" and tok.tag[1:].isdigit():
             level = int(tok.tag[1])
-            inline_content = tokens[j + 1].content  # raw markdown source
+            if prev_level > 0 and level > prev_level + 1:
+                warnings.append(
+                    f"Heading level jump from h{prev_level} to h{level} — "
+                    f"skipping a level may break document structure. "
+                    f'Check synthesis.md near heading: "{tokens[j + 1].content}"'
+                )
+            prev_level = level
+            inline_content = tokens[j + 1].content
             slug = _unique_slug(inline_content, used_slugs)
             nav_headings.append((level, inline_content, slug))
-            # Inject id attribute on the heading_open token
             tok.attrSet("id", slug)
 
     # ── Render ───────────────────────────────────────────────────────────────
@@ -187,7 +207,7 @@ def render_markdown(text: str) -> tuple[str, str, list[tuple[int, str, str]], st
             r"<p><em>Synthesis of \d+ documents\..*?</em></p>", "", body_html
         )
 
-    return body_html, title, nav_headings, doc_count
+    return body_html, title, nav_headings, doc_count, warnings
 
 
 def build_html_page(
@@ -250,6 +270,7 @@ def build_html_page(
   <div id="ask-claude-btn" class="ask-btn hidden">Ask Claude</div>
   <div id="toast" class="toast hidden"></div>
   <div id="response-panel">
+    <div id="panel-resize-handle"></div>
     <div class="response-panel-header">
       <h2>Ask Claude</h2>
       <button class="response-panel-close" id="response-panel-close" aria-label="Close">&times;</button>
@@ -287,7 +308,7 @@ def main():
 
     root = Path(args.root) if args.root else Path.cwd()
     synthesis_md = root / "synthesis" / "synthesis.md"
-    citations_json = root / "citations.json"
+    citations_json = root / "synthesis" / "citations.json"
     memory_md = root / "synthesis" / "synthesis-memory.md"
     output_html = root / "synthesis" / "synthesis.html"
 
@@ -300,7 +321,7 @@ def main():
         sys.exit(1)
     if not citations_json.exists():
         print(
-            "ERROR: citations.json not found. Run /summarize-documents first.",
+            "ERROR: synthesis/citations.json not found. Run /summarize-documents first.",
             file=sys.stderr,
         )
         sys.exit(1)
@@ -311,7 +332,9 @@ def main():
     memory_doc = memory_md.read_text(encoding="utf-8") if memory_md.exists() else None
 
     # Parse and render
-    body_html, detected_title, nav_headings, doc_count = render_markdown(md_text)
+    body_html, detected_title, nav_headings, doc_count, struct_warnings = (
+        render_markdown(md_text)
+    )
     title = args.title or detected_title or "Synthesis"
     body_html, missing_keys = enrich_citations(body_html, citations)
 
@@ -345,6 +368,10 @@ def main():
         print("\nMissing citation keys:")
         for k in missing_keys:
             print(f"  [@{k}]")
+    if struct_warnings:
+        print("\nStructural warnings:")
+        for w in struct_warnings:
+            print(f"  WARNING: {w}")
 
 
 if __name__ == "__main__":

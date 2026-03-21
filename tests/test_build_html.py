@@ -77,7 +77,7 @@ def test_cli_missing_synthesis(tmp_path):
 # ── Markdown renderer tests ──────────────────────────────────────────────────
 def test_render_headings():
     mod = _load_script()
-    html, title, headings, _ = mod.render_markdown(
+    html, title, headings, _, _ = mod.render_markdown(
         "# My Title\n\n## Section One\n\n### Sub-section\n\n#### Deep\n"
     )
     assert title == "My Title"
@@ -94,7 +94,7 @@ def test_render_headings():
 
 def test_render_paragraph_and_lists():
     mod = _load_script()
-    html, _, _, _ = mod.render_markdown("A paragraph.\n\n- Item one\n- Item two\n")
+    html, _, _, _, _ = mod.render_markdown("A paragraph.\n\n- Item one\n- Item two\n")
     assert "<p>A paragraph.</p>" in html
     assert "<ul>" in html
     assert "<li>Item one</li>" in html
@@ -102,14 +102,14 @@ def test_render_paragraph_and_lists():
 
 def test_render_inline_formatting():
     mod = _load_script()
-    html, _, _, _ = mod.render_markdown("Some **bold** and *italic* text.\n")
+    html, _, _, _, _ = mod.render_markdown("Some **bold** and *italic* text.\n")
     assert "<strong>bold</strong>" in html
     assert "<em>italic</em>" in html
 
 
 def test_render_citation_placeholder():
     mod = _load_script()
-    html, _, _, _ = mod.render_markdown(
+    html, _, _, _, _ = mod.render_markdown(
         "Found X [@Smith2023Finding] and Y [@Lee2024Review].\n"
     )
     assert 'data-key="Smith2023Finding"' in html
@@ -119,22 +119,29 @@ def test_render_citation_placeholder():
     assert '<cite data-key="Lee2024Review">[Lee2024Review]</cite>' in html
 
 
+def test_render_citation_semicolon_separator():
+    mod = _load_script()
+    html, _, _, _, _ = mod.render_markdown("See [@Smith2023Finding; @Lee2024Review].\n")
+    assert 'data-key="Smith2023Finding"' in html
+    assert 'data-key="Lee2024Review"' in html
+
+
 def test_render_html_escaping():
     mod = _load_script()
-    html, _, _, _ = mod.render_markdown("A paragraph with <script>evil</script>.\n")
+    html, _, _, _, _ = mod.render_markdown("A paragraph with <script>evil</script>.\n")
     assert "<script>" not in html
     assert "&lt;script&gt;" in html
 
 
 def test_render_heading_inline_formatting():
     mod = _load_script()
-    html, _, _, _ = mod.render_markdown("## **Bold** Section\n")
+    html, _, _, _, _ = mod.render_markdown("## **Bold** Section\n")
     assert "<strong>Bold</strong>" in html
 
 
 def test_render_slug_collision():
     mod = _load_script()
-    html, _, headings, _ = mod.render_markdown("## Intro\n\n## Intro\n")
+    html, _, headings, _, _ = mod.render_markdown("## Intro\n\n## Intro\n")
     assert headings[0][2] == "intro"
     assert headings[1][2] == "intro-2"
     assert 'id="intro"' in html
@@ -143,7 +150,7 @@ def test_render_slug_collision():
 
 def test_render_doc_count_extraction():
     mod = _load_script()
-    html, _, _, doc_count = mod.render_markdown(
+    html, _, _, doc_count, _ = mod.render_markdown(
         "# Title\n\n*Synthesis of 42 documents.*\n\n## Section\n"
     )
     assert doc_count == "42"
@@ -309,7 +316,8 @@ def test_end_to_end(tmp_path):
         - Point two
     """)
     )
-    (tmp_path / "citations.json").write_text(
+    (tmp_path / "synthesis").mkdir(exist_ok=True)
+    (tmp_path / "synthesis" / "citations.json").write_text(
         json.dumps(
             {
                 "Smith2023Finding": {

@@ -89,6 +89,72 @@ header h1 { font-size: 1.6rem; }
   border-left-color: #888;
 }
 
+.sidebar .nav-h4 { padding-left: 1.5rem; margin-bottom: 0.1rem; }
+.sidebar .nav-h4 a {
+  color: #999;
+  text-decoration: none;
+  font-size: 0.7875rem;
+  display: block;
+  padding: 0.15rem 0.5rem;
+  border-radius: 4px;
+  border-left: 2px solid transparent;
+  transition: color 0.15s, background 0.15s, border-color 0.15s;
+}
+.sidebar .nav-h4 a:hover {
+  color: #444;
+  background: rgba(0,0,0,0.02);
+  border-left-color: #ddd;
+}
+.sidebar .nav-h4 a.active {
+  color: #555;
+  background: rgba(0,0,0,0.03);
+  border-left-color: #aaa;
+}
+
+.sidebar .nav-h5 { padding-left: 2.25rem; margin-bottom: 0.1rem; }
+.sidebar .nav-h5 a {
+  color: #aaa;
+  text-decoration: none;
+  font-size: 0.75rem;
+  display: block;
+  padding: 0.1rem 0.5rem;
+  border-radius: 4px;
+  border-left: 2px solid transparent;
+  transition: color 0.15s, background 0.15s, border-color 0.15s;
+}
+.sidebar .nav-h5 a:hover {
+  color: #555;
+  background: rgba(0,0,0,0.02);
+  border-left-color: #e5e5e5;
+}
+.sidebar .nav-h5 a.active {
+  color: #666;
+  background: rgba(0,0,0,0.02);
+  border-left-color: #bbb;
+}
+
+.sidebar .nav-h6 { padding-left: 3rem; margin-bottom: 0.1rem; }
+.sidebar .nav-h6 a {
+  color: #bbb;
+  text-decoration: none;
+  font-size: 0.7rem;
+  display: block;
+  padding: 0.1rem 0.5rem;
+  border-radius: 4px;
+  border-left: 2px solid transparent;
+  transition: color 0.15s, background 0.15s, border-color 0.15s;
+}
+.sidebar .nav-h6 a:hover {
+  color: #666;
+  background: rgba(0,0,0,0.02);
+  border-left-color: #eee;
+}
+.sidebar .nav-h6 a.active {
+  color: #777;
+  background: rgba(0,0,0,0.02);
+  border-left-color: #ccc;
+}
+
 .content {
   flex: 1;
   padding: 2rem 3rem;
@@ -96,6 +162,9 @@ header h1 { font-size: 1.6rem; }
 }
 .content h2 { margin: 2rem 0 0.75rem; font-size: 1.25rem; }
 .content h3 { margin: 1.5rem 0 0.5rem; font-size: 1.05rem; }
+.content h4 { margin: 1.25rem 0 0.4rem; font-size: 0.95rem; }
+.content h5 { margin: 1rem 0 0.35rem; font-size: 0.875rem; font-weight: 600; }
+.content h6 { margin: 0.75rem 0 0.3rem; font-size: 0.825rem; font-weight: 600; color: #555; }
 .content p  { margin-bottom: 1rem; }
 .content ul { margin: 0.5rem 0 1rem 1.5rem; }
 .content ol { margin: 0.5rem 0 1rem 1.5rem; }
@@ -160,7 +229,7 @@ cite:hover { color: #004499; }
 #response-panel {
   position: fixed;
   top: 0; right: 0;
-  width: 40vw; min-width: 320px; max-width: 640px;
+  width: 60vw; min-width: 320px;
   height: 100vh;
   background: #fff;
   border-left: 1px solid #e5e5e5;
@@ -171,6 +240,15 @@ cite:hover { color: #004499; }
   transition: transform 0.25s ease;
 }
 #response-panel.open { transform: translateX(0); }
+
+#panel-resize-handle {
+  position: absolute;
+  left: 0; top: 0;
+  width: 6px; height: 100%;
+  cursor: ew-resize;
+  z-index: 10;
+}
+#panel-resize-handle:hover { background: rgba(0,0,0,0.08); }
 
 .response-panel-header {
   display: flex; align-items: center; justify-content: space-between;
