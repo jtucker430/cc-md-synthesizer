@@ -8,6 +8,7 @@ synthesis/synthesis.md
 synthesis/synthesis-memory.md
 synthesis/synthesis.html
 synthesis/synthesis-guidance.md
+synthesis/citations.json
 references.bib
 
 # Keep directory stubs
@@ -17,6 +18,9 @@ references.bib
 
 # Worktrees
 .worktrees/
+
+# Export packages
+exports/
 
 # Python / environment
 .venv/
