@@ -74,6 +74,7 @@ documents/          →   /cleanup-pdf-names
                     →   /summarize-documents     →   summaries/*.md
                                                      synthesis/citations.json
                     →   /create-synthesis        →   synthesis/synthesis.md
+                                                     synthesis/references.bib
                     →   /launch-synthesis        →   synthesis/synthesis.html
                                                      (server: run manually, port 8000)
                     →   /export-synthesis        →   exports/*.zip
@@ -92,7 +93,7 @@ Once you have a synthesis, `/export-synthesis` packages the HTML, all source PDF
 |---|---|
 | `/cleanup-pdf-names <path>` | Sanitizes PDF filenames (spaces → underscores, dashes normalized) for consistent downstream processing |
 | `/summarize-documents <path> ["context"]` | Generates a per-document summary for each PDF; detects document type and adapts the summary structure; fetches BibTeX entries via DOI/title lookup; skips already-summarized documents |
-| `/create-synthesis ["context"]` | Reads all summaries and generates a cross-cutting synthesis with thematic sections, tensions, consensus, gaps, and inline citations; triggers the full pipeline if summaries are missing |
+| `/create-synthesis ["context"]` | Reads all summaries and generates a cross-cutting synthesis with thematic sections, tensions, consensus, gaps, and inline citations; also writes `synthesis/references.bib` with a BibTeX entry for every cited source; triggers the full pipeline if summaries are missing |
 | `/launch-synthesis` | Builds the interactive HTML and opens the page in your browser (start the server separately to enable Ask Claude) |
 | `/export-synthesis ["name"]` | Packages synthesis.html, all PDFs, summaries, and citations.json into a shareable ZIP in `exports/`; disables the Ask Claude button since it requires a local server |
 | `/pipeline-reset` | Clears all generated files (PDFs, summaries, synthesis outputs) for a fresh start; offers to export first if a synthesis exists |

@@ -75,7 +75,27 @@ Write `synthesis/synthesis.md` per @.claude/reference/synthesis-format.md:
 
 ---
 
-### Step 5: Write Synthesis Memory Stub
+### Step 5: Write BibTeX File
+
+Generate `synthesis/references.bib` from `synthesis/citations.json`.
+
+For each entry in `citations.json`, emit a BibTeX block using the citation key and `type` field:
+- `"article"` → `@article`
+- `"inproceedings"` → `@inproceedings`
+- `"misc"` → `@misc`
+- Any other type → `@misc`
+
+For `@article`: include `author`, `title`, `journal` (from `venue`), `year`, `doi` (if non-empty), `url` (if non-empty).
+For `@inproceedings`: include `author`, `title`, `booktitle` (from `venue`), `year`, `doi` (if non-empty), `url` (if non-empty).
+For `@misc`: include `author`, `title`, `year`, `note` (from `venue` if non-empty), `doi` (if non-empty), `url` (if non-empty).
+
+Escape the following characters in field values: `&` → `\&`, `#` → `\#`, `%` → `\%`. Use `{{` / `}}` double-brace wrapping for title values to preserve capitalisation.
+
+Write the file atomically (write to a temp file, then rename). Always overwrite any existing `synthesis/references.bib`.
+
+---
+
+### Step 7: Write Synthesis Memory Stub
 
 Create `synthesis/synthesis-memory.md` with this structure:
 
@@ -104,7 +124,7 @@ Create `synthesis/synthesis-memory.md` with this structure:
 
 ---
 
-### Step 6: Report Results
+### Step 8: Report Results
 
 ```
 Create Synthesis — Results
@@ -112,6 +132,7 @@ Create Synthesis — Results
 Summaries read:       {N}
 Citations used:       {M distinct citation keys}
 Output:               synthesis/synthesis.md
+BibTeX:               synthesis/references.bib ({M} entries)
 Memory stub:          synthesis/synthesis-memory.md ({created|already exists — updated topic/corpus/themes only})
 
 Run /launch-synthesis to build the interactive HTML page and open it in the browser.
